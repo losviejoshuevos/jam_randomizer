@@ -6,4 +6,5 @@ coverage/
 .env*
 !.env.example
 .DS_Store
+music_theory/*.pdf
 npm-debug.log*

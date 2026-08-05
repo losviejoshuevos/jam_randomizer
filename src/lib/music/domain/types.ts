@@ -11,6 +11,7 @@ export type HarmonicFreedom = "strict" | "colorful" | "adventurous";
 export type Mode = "major" | "minor";
 export type Meter = "4/4" | "3/4";
 export type SectionLabel = "A" | "B";
+export type SectionRole = "theme" | "chorus" | "bridge";
 
 export type PitchClass =
   | "C"
@@ -56,9 +57,9 @@ export interface GeneratedChord extends ChordTiming {
 export interface ManualChord extends ChordTiming {
   id: ChordId;
   source: "manual";
-  roman: null;
+  roman: RomanChord;
   renderedSymbol: string;
-  harmonicFunction: null;
+  harmonicFunction: HarmonicFunction;
 }
 
 export type JamChord = GeneratedChord | ManualChord;
@@ -67,6 +68,7 @@ export interface JamSection {
   id: SectionId;
   label: SectionLabel;
   displayName: string;
+  role: SectionRole;
   bars: number;
   repeats: number;
   locked: boolean;
@@ -78,6 +80,7 @@ export interface TimelineStep {
   id: TimelineStepId;
   sectionId: SectionId;
   durationSeconds: number;
+  transitionWarningSeconds: number;
 }
 
 export interface JamSession {

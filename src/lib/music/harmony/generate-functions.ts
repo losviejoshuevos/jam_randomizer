@@ -23,8 +23,8 @@ export function generateHarmonicFunctions(
   chordCount: number,
   random: RandomSource,
 ): HarmonicFunction[] {
-  if (chordCount < 2) {
-    throw new Error("A section requires at least two harmonic events.");
+  if (chordCount < 1) {
+    throw new Error("A section requires at least one harmonic event.");
   }
 
   const availableFunctions = new Set(
@@ -44,6 +44,30 @@ export function generateHarmonicFunctions(
 
   if (startChoices.length === 0 || endChoices.length === 0) {
     throw new Error(`Style profile cannot generate section ${sectionLabel}.`);
+  }
+
+  const styledPatterns = profile.harmonicFunctionPatterns
+    ?.filter(
+      (pattern) =>
+        pattern.allowedSections.includes(sectionLabel) &&
+        pattern.allowedComplexities.includes(settings.complexity) &&
+        pattern.functions.length === chordCount &&
+        pattern.functions.every((value) => availableFunctions.has(value)) &&
+        startChoices.some(({ value }) => value === pattern.functions[0]) &&
+        endChoices.some(({ value }) => value === pattern.functions.at(-1)),
+    )
+    .map((pattern) => ({ value: pattern.functions, weight: pattern.weight }));
+
+  if (styledPatterns?.length) {
+    return [...weightedChoice(styledPatterns, random)];
+  }
+
+  if (chordCount === 1) {
+    const onlyFunction = weightedChoice(startChoices, random);
+    if (!endChoices.some(({ value }) => value === onlyFunction)) {
+      throw new Error(`Style profile cannot generate a one-chord ${sectionLabel} section.`);
+    }
+    return [onlyFunction];
   }
 
   const functions: HarmonicFunction[] = [weightedChoice(startChoices, random)];

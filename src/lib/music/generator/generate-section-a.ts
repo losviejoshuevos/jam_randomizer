@@ -7,6 +7,7 @@ import type {
 } from "../domain/types";
 import { generateHarmonicFunctions } from "../harmony/generate-functions";
 import { getAvailableChordDefinitions } from "../harmony/availability";
+import { selectHarmonicChordPattern } from "../harmony/select-chord-pattern";
 import { selectChordDefinitions } from "../harmony/select-chords";
 import { createSeededRandom, deriveSeed, weightedChoice } from "../random";
 import { renderRomanChord } from "../rendering/render-roman-chord";
@@ -63,24 +64,33 @@ function createAttempt(
     settings.complexity,
     random,
   );
-  const initialFunctions = generateHarmonicFunctions(
+  const chordPattern = selectHarmonicChordPattern(
     profile,
     settings,
     "A",
     durations.length,
     random,
   );
-  const { definitions } = selectChordDefinitions(
-    initialFunctions,
-    profile,
-    settings,
-    random,
-  );
+  const definitions =
+    chordPattern ??
+    selectChordDefinitions(
+      generateHarmonicFunctions(
+        profile,
+        settings,
+        "A",
+        durations.length,
+        random,
+      ),
+      profile,
+      settings,
+      random,
+    ).definitions;
 
   return {
     id: `section-${deriveSeed(attemptSeed, "id")}`,
     label: "A",
-    displayName: "Theme A",
+    displayName: "Тема A",
+    role: "theme",
     bars,
     repeats: 1,
     locked: false,
@@ -96,7 +106,7 @@ function highestWeightDefinition(
 ): ChordDefinition {
   const definitions = getAvailableChordDefinitions(
     profile,
-    { ...settings, complexity: "easy", harmonicFreedom: "strict" },
+    settings,
     harmonicFunction,
   ).sort((left, right) => right.weight - left.weight);
 
@@ -113,24 +123,20 @@ function createSafeFallback(
   profile: StyleProfile,
 ): JamSection {
   const fallbackSeed = deriveSeed(seed, "section:A:fallback");
-  const definitions = [
-    highestWeightDefinition(profile, settings, "tonic"),
-    highestWeightDefinition(profile, settings, "predominant"),
-    highestWeightDefinition(profile, settings, "dominant"),
-    highestWeightDefinition(profile, settings, "tonic"),
-  ];
+  const definitions = [highestWeightDefinition(profile, settings, "tonic")];
 
   return {
     id: `section-${deriveSeed(fallbackSeed, "id")}`,
     label: "A",
-    displayName: "Theme A (safe fallback)",
+    displayName: "Тема A",
+    role: "theme",
     bars: 4,
     repeats: 1,
     locked: false,
     generationSeed: fallbackSeed,
     chords: materializeChords(
       definitions,
-      [1, 1, 1, 1],
+      [4],
       fallbackSeed,
       settings,
     ),

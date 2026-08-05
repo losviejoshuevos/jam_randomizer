@@ -137,12 +137,12 @@ export function validateGeneratedSection(
       }
 
       if (
-        chord.roman === "V7/V" &&
-        section.chords[index + 1]?.roman !== "V7"
+        chord.roman?.endsWith("/V") &&
+        section.chords[index + 1]?.harmonicFunction !== "dominant"
       ) {
         issues.push({
           code: "UNRESOLVED_SECONDARY_DOMINANT",
-          message: "The neighboring-key dominant must resolve to V7.",
+          message: "The neighboring-key dominant must resolve to a V chord.",
           sectionId: section.id,
           chordId: chord.id,
         });

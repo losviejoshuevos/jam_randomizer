@@ -10,6 +10,10 @@ describe("renderRomanChord", () => {
     ["V7", "C", "minor", "G7"],
     ["bVII7", "C", "major", "Bb7"],
     ["V7/V", "C", "major", "D7"],
+    ["V13/V", "C", "major", "D13"],
+    ["Imaj9", "C", "major", "Cmaj9"],
+    ["i11", "C", "minor", "Cm11"],
+    ["V7#9", "C", "major", "G7#9"],
     ["bVII7", "F", "major", "Eb7"],
   ] as const)("renders %s in %s %s as %s", (roman, key, mode, expected) => {
     expect(renderRomanChord(roman, key, mode)).toBe(expected);

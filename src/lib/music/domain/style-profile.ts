@@ -19,9 +19,27 @@ export interface ChordDefinition {
   harmonicFunction: HarmonicFunction;
   weight: number;
   minimumComplexity: Complexity;
+  allowedComplexities?: Complexity[];
   allowedModes: Mode[];
   tonalSource: TonalSource;
   tags?: string[];
+}
+
+export interface HarmonicFunctionPattern {
+  id: string;
+  functions: HarmonicFunction[];
+  weight: number;
+  allowedSections: SectionLabel[];
+  allowedComplexities: Complexity[];
+}
+
+export interface HarmonicChordPattern {
+  id: string;
+  romanChords: RomanChord[];
+  weight: number;
+  allowedSections: SectionLabel[];
+  allowedComplexities: Complexity[];
+  allowedModes: Mode[];
 }
 
 export interface HarmonicRhythmPattern {
@@ -68,6 +86,9 @@ export interface StyleProfile {
     HarmonicFunction,
     WeightedValue<HarmonicFunction>[]
   >;
+  harmonicFunctionPatterns?: HarmonicFunctionPattern[];
+  harmonicChordPatterns?: HarmonicChordPattern[];
+  genericHarmonyWeight?: number;
   harmonicRhythms: WeightedValue<HarmonicRhythmPattern>[];
   sectionRules: Record<SectionLabel, SectionRule>;
   tonalSourceWeights: Record<HarmonicFreedom, TonalSourceWeights>;

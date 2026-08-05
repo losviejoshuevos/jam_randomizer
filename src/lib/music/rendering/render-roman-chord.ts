@@ -82,11 +82,11 @@ export function renderRomanChord(
   key: PitchClass,
   mode: Mode,
 ): string {
-  if (roman === "V7/V") {
-    return `${renderPitch(key, 2, mode)}7`;
+  if (roman === "V7/V" || roman === "V13/V") {
+    return `${renderPitch(key, 2, mode)}${roman.startsWith("V13") ? "13" : "7"}`;
   }
 
-  const match = /^(b|#)?(VII|III|VI|IV|II|V|I|vii|iii|vi|iv|ii|v|i)(maj7|7|9)?$/.exec(
+  const match = /^(b|#)?(VII|III|VI|IV|II|V|I|vii|iii|vi|iv|ii|v|i)(maj7|maj9|6\/9|6|7sus4|9sus4|13sus4|7#9|7b9|7|9|11|13)?$/.exec(
     roman,
   );
 

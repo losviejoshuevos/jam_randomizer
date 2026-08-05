@@ -49,7 +49,8 @@ export function getAvailableChordDefinitions(
       (harmonicFunction === undefined ||
         definition.harmonicFunction === harmonicFunction) &&
       definition.allowedModes.includes(settings.mode) &&
-      isComplexityAllowed(definition.minimumComplexity, settings.complexity) &&
+      (definition.allowedComplexities?.includes(settings.complexity) ??
+        isComplexityAllowed(definition.minimumComplexity, settings.complexity)) &&
       getTonalSourceWeight(definition.tonalSource, profile, settings) > 0
     );
   });
