@@ -21,4 +21,4 @@ npm test
 npm run build
 ```
 
-The current iteration contains a deterministic, validated Funk generator for section A, RomanChord rendering, the serializable style profile, and a read-only editor screen. Section B, Stage Mode timing, persistence, and manual editing are intentionally deferred to later iterations.
+The current iteration contains a deterministic, validated Funk generator for section A, automatic card codes for musical QA, RomanChord rendering, the serializable style profile, and a read-only editor screen. Section B, Stage Mode timing, persistence, and manual editing are intentionally deferred to later iterations.

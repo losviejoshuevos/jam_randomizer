@@ -45,6 +45,10 @@ const DEFAULT_SETTINGS: GenerationSettings = {
 
 const FIELD_CLASS =
   "mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white outline-none transition focus:border-[var(--accent)]";
+const CARD_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+const INITIAL_CARD_CODE = "FUNK-START";
+
+type CopyStatus = "idle" | "copied" | "failed";
 
 function createResult(seed: string, settings: GenerationSettings) {
   return generateSectionA({
@@ -54,24 +58,80 @@ function createResult(seed: string, settings: GenerationSettings) {
   });
 }
 
-export function FunkGenerator() {
-  const [seed, setSeed] = useState("friday-funk");
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const [result, setResult] = useState(() =>
-    createResult("friday-funk", DEFAULT_SETTINGS),
+function createCardCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  const characters = Array.from(
+    bytes,
+    (byte) => CARD_CODE_ALPHABET[byte % CARD_CODE_ALPHABET.length],
   );
-  const [error, setError] = useState<string | null>(null);
 
-  function generate() {
+  return `FUNK-${characters.slice(0, 5).join("")}-${characters.slice(5).join("")}`;
+}
+
+function snapshotSettings(settings: GenerationSettings): GenerationSettings {
+  return {
+    ...settings,
+    timing: { ...settings.timing },
+  };
+}
+
+async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch {
+    const input = document.createElement("textarea");
+    input.value = text;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+
+    const copied = document.execCommand("copy");
+    input.remove();
+
+    if (!copied) {
+      throw new Error("Clipboard access is unavailable.");
+    }
+  }
+}
+
+export function FunkGenerator() {
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [card, setCard] = useState(() => ({
+    code: INITIAL_CARD_CODE,
+    settings: snapshotSettings(DEFAULT_SETTINGS),
+    result: createResult(INITIAL_CARD_CODE, DEFAULT_SETTINGS),
+  }));
+  const [error, setError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
+
+  function generateNewHarmony() {
     try {
-      setResult(createResult(seed, settings));
+      const code = createCardCode();
+      setCard({
+        code,
+        settings: snapshotSettings(settings),
+        result: createResult(code, settings),
+      });
       setError(null);
+      setCopyStatus("idle");
     } catch (generationError) {
       setError(
         generationError instanceof Error
           ? generationError.message
           : "Не удалось создать гармонию.",
       );
+    }
+  }
+
+  async function copyCardCode() {
+    try {
+      await copyText(card.code);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("failed");
     }
   }
 
@@ -86,8 +146,8 @@ export function FunkGenerator() {
             Jam Randomizer
           </h1>
           <p className="mt-3 max-w-2xl text-[var(--muted)]">
-            Детерминированная Funk-гармония для секции A. Один seed и одинаковые
-            настройки всегда дают тот же результат.
+            Создавайте варианты Funk-гармонии для секции A и сохраняйте код
+            понравившейся или проблемной карточки.
           </p>
         </div>
         <RouteLink href="/stage">Stage Mode</RouteLink>
@@ -97,15 +157,6 @@ export function FunkGenerator() {
         <section className="rounded-3xl border border-white/10 bg-[var(--surface)] p-5 sm:p-6">
           <h2 className="text-lg font-bold">Настройки</h2>
           <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-1">
-            <label className="col-span-2 text-sm text-[var(--muted)] lg:col-span-1">
-              Seed
-              <input
-                className={FIELD_CLASS}
-                onChange={(event) => setSeed(event.target.value)}
-                value={seed}
-              />
-            </label>
-
             <label className="text-sm text-[var(--muted)]">
               Тональность
               <select
@@ -197,10 +248,10 @@ export function FunkGenerator() {
 
           <button
             className="mt-6 w-full rounded-xl bg-[var(--accent)] px-5 py-3 font-bold text-black transition hover:brightness-90 active:scale-[0.99]"
-            onClick={generate}
+            onClick={generateNewHarmony}
             type="button"
           >
-            Сгенерировать A
+            Новая гармония
           </button>
 
           {error ? (
@@ -210,23 +261,27 @@ export function FunkGenerator() {
           ) : null}
         </section>
 
-        <section className="flex min-h-[420px] flex-col rounded-3xl border border-white/10 bg-black p-6 sm:p-10">
+        <section
+          className="flex min-h-[420px] flex-col rounded-3xl border border-white/10 bg-black p-6 sm:p-10"
+          data-testid="harmony-card"
+        >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.28em] text-[var(--accent)]">
                 Funk · Theme A
               </p>
               <h2 className="mt-3 text-3xl font-black sm:text-5xl">
-                {settings.key} {settings.mode === "major" ? "major" : "minor"}
+                {card.settings.key}{" "}
+                {card.settings.mode === "major" ? "major" : "minor"}
               </h2>
             </div>
             <div className="rounded-full border border-white/15 px-4 py-2 text-sm text-[var(--muted)]">
-              {result.value.bars} тактов · {settings.meter}
+              {card.result.value.bars} тактов · {card.settings.meter}
             </div>
           </div>
 
           <div className="my-auto grid gap-3 py-10 sm:grid-cols-2 xl:grid-cols-4">
-            {result.value.chords.map((chord, index) => (
+            {card.result.value.chords.map((chord, index) => (
               <div
                 className="rounded-2xl border border-white/10 bg-[var(--surface)] p-5"
                 key={chord.id}
@@ -247,10 +302,23 @@ export function FunkGenerator() {
             ))}
           </div>
 
-          <footer className="flex flex-wrap gap-x-5 gap-y-2 border-t border-white/10 pt-5 text-xs text-[var(--muted)]">
-            <span>seed: {seed}</span>
-            <span>attempt: {result.attempts}</span>
-            <span>{result.usedFallback ? "safe fallback" : "validated"}</span>
+          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5 text-xs text-[var(--muted)]">
+            <div className="flex flex-wrap items-center gap-3">
+              <span data-testid="card-code">Код карточки: {card.code}</span>
+              <button
+                className="rounded-full border border-white/15 px-3 py-1.5 text-white transition hover:border-white/30"
+                onClick={copyCardCode}
+                type="button"
+              >
+                {copyStatus === "copied" ? "Скопировано" : "Скопировать код"}
+              </button>
+              {copyStatus === "failed" ? (
+                <span className="text-red-300">Не удалось скопировать</span>
+              ) : null}
+            </div>
+            <span>
+              {card.result.usedFallback ? "Безопасный вариант" : "Проверено"}
+            </span>
           </footer>
         </section>
       </div>
