@@ -21,4 +21,4 @@ npm test
 npm run build
 ```
 
-The current iteration contains the application scaffold, domain contracts, the initial serializable Funk profile, and placeholder routes. Harmony generation is intentionally not implemented yet.
+The current iteration contains a deterministic, validated Funk generator for section A, RomanChord rendering, the serializable style profile, and a read-only editor screen. Section B, Stage Mode timing, persistence, and manual editing are intentionally deferred to later iterations.
