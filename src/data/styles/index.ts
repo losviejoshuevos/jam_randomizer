@@ -1,0 +1,1 @@
+export { funkStyleProfile } from "./funk";
