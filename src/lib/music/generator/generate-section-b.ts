@@ -8,6 +8,7 @@ import type {
   Seed,
 } from "../domain/types";
 import { getAvailableChordDefinitions } from "../harmony/availability";
+import { diversifyHalfBarChords } from "../harmony/diversify-half-bar-chords";
 import { selectChordDefinitions } from "../harmony/select-chords";
 import { createSeededRandom, deriveSeed, weightedChoice } from "../random";
 import { renderRomanChord } from "../rendering/render-roman-chord";
@@ -162,6 +163,14 @@ function createAttempt(
     }
   }
 
+  const definitions = diversifyHalfBarChords(
+    selected.definitions,
+    durations,
+    profile,
+    settings,
+    random,
+  );
+
   return {
     id: `section-${deriveSeed(attemptSeed, "id")}`,
     label: "B",
@@ -172,7 +181,7 @@ function createAttempt(
     locked: false,
     generationSeed: attemptSeed,
     chords: materializeChords(
-      selected.definitions,
+      definitions,
       durations,
       attemptSeed,
       settings,

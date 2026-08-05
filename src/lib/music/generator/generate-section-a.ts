@@ -7,6 +7,7 @@ import type {
 } from "../domain/types";
 import { generateHarmonicFunctions } from "../harmony/generate-functions";
 import { getAvailableChordDefinitions } from "../harmony/availability";
+import { diversifyHalfBarChords } from "../harmony/diversify-half-bar-chords";
 import { selectHarmonicChordPattern } from "../harmony/select-chord-pattern";
 import { selectChordDefinitions } from "../harmony/select-chords";
 import { createSeededRandom, deriveSeed, weightedChoice } from "../random";
@@ -71,7 +72,7 @@ function createAttempt(
     durations.length,
     random,
   );
-  const definitions =
+  const selectedDefinitions =
     chordPattern ??
     selectChordDefinitions(
       generateHarmonicFunctions(
@@ -85,6 +86,13 @@ function createAttempt(
       settings,
       random,
     ).definitions;
+  const definitions = diversifyHalfBarChords(
+    selectedDefinitions,
+    durations,
+    profile,
+    settings,
+    random,
+  );
 
   return {
     id: `section-${deriveSeed(attemptSeed, "id")}`,

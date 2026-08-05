@@ -88,6 +88,26 @@ describe("generateSectionA", () => {
     ).toBe(true);
   });
 
+  it("expands manual vocabulary with harmonic freedom", () => {
+    const availableRoman = (harmonicFreedom: HarmonicFreedom) =>
+      new Set(
+        getAvailableChordDefinitions(
+          funkStyleProfile,
+          settings(harmonicFreedom, "advanced", "minor"),
+        ).map(({ roman }) => roman),
+      );
+    const strictRoman = availableRoman("strict");
+    const colorfulRoman = availableRoman("colorful");
+    const adventurousRoman = availableRoman("adventurous");
+
+    expect(colorfulRoman.size).toBeGreaterThan(strictRoman.size);
+    expect(adventurousRoman.size).toBeGreaterThan(colorfulRoman.size);
+    expect(strictRoman.has("i13")).toBe(false);
+    expect(colorfulRoman.has("i13")).toBe(true);
+    expect(colorfulRoman.has("V13/V")).toBe(false);
+    expect(adventurousRoman.has("V13/V")).toBe(true);
+  });
+
   it("generates song-derived Funk pattern families", () => {
     const generatedPatterns = new Set<string>();
     const patternSettings = [
@@ -175,7 +195,7 @@ describe("generateSectionA", () => {
     }
   });
 
-  it("varies the first minor tonic between 7, 9, and 11 on advanced", () => {
+  it("varies the first minor tonic between 7, 9, 11, and 13 on advanced", () => {
     const firstTonics = new Set<string>();
     const advancedSettings = settings("adventurous", "advanced", "minor");
 
@@ -186,12 +206,17 @@ describe("generateSectionA", () => {
         styleProfile: funkStyleProfile,
       });
       const firstRoman = result.value.chords[0]?.roman;
-      if (firstRoman === "i7" || firstRoman === "i9" || firstRoman === "i11") {
+      if (
+        firstRoman === "i7" ||
+        firstRoman === "i9" ||
+        firstRoman === "i11" ||
+        firstRoman === "i13"
+      ) {
         firstTonics.add(firstRoman);
       }
     }
 
-    expect(firstTonics).toEqual(new Set(["i7", "i9", "i11"]));
+    expect(firstTonics).toEqual(new Set(["i7", "i9", "i11", "i13"]));
   });
 
   it("produces Funk vamps, limited-function loops, and open endings", () => {
@@ -220,6 +245,76 @@ describe("generateSectionA", () => {
     expect(foundOneChordVamp).toBe(true);
     expect(foundTwoFunctionLoop).toBe(true);
     expect(foundOpenEnding).toBe(true);
+  });
+
+  it("keeps every single-chord vamp to one four-bar square", () => {
+    let foundSingleChordVamp = false;
+
+    for (let seed = 0; seed < 1_000; seed += 1) {
+      const result = generateSectionA({
+        seed: `four-bar-single-vamp-${seed}`,
+        settings: settings("adventurous", "advanced", "major"),
+        styleProfile: funkStyleProfile,
+      });
+
+      if (result.value.chords.length === 1) {
+        foundSingleChordVamp = true;
+        expect(result.value.bars).toBe(4);
+        expect(result.value.chords[0]?.durationBars).toBe(4);
+      }
+    }
+
+    expect(foundSingleChordVamp).toBe(true);
+  });
+
+  it("uses half-bar changes rarely in 4/4 Medium and never in Easy or 3/4", () => {
+    let halfBarSections = 0;
+    const sampleSize = 2_000;
+
+    for (let seed = 0; seed < sampleSize; seed += 1) {
+      const mediumResult = generateSectionA({
+        seed: `half-bar-medium-${seed}`,
+        settings: settings("adventurous", "medium", "major"),
+        styleProfile: funkStyleProfile,
+      });
+      const easyResult = generateSectionA({
+        seed: `half-bar-easy-${seed}`,
+        settings: settings("adventurous", "easy", "major"),
+        styleProfile: funkStyleProfile,
+      });
+      const threeFourResult = generateSectionA({
+        seed: `half-bar-three-four-${seed}`,
+        settings: {
+          ...settings("adventurous", "advanced", "major"),
+          meter: "3/4",
+        },
+        styleProfile: funkStyleProfile,
+      });
+
+      halfBarSections += Number(
+        mediumResult.value.chords.some(({ durationBars }) => durationBars === 0.5),
+      );
+      mediumResult.value.chords.forEach((chord, index, chords) => {
+        const previous = chords[index - 1];
+
+        if (previous?.durationBars === 0.5 && chord.durationBars === 0.5) {
+          expect(chord.roman, `seed half-bar-medium-${seed}`).not.toBe(
+            previous.roman,
+          );
+        }
+      });
+      expect(
+        easyResult.value.chords.some(({ durationBars }) => durationBars === 0.5),
+      ).toBe(false);
+      expect(
+        threeFourResult.value.chords.some(
+          ({ durationBars }) => durationBars === 0.5,
+        ),
+      ).toBe(false);
+    }
+
+    expect(halfBarSections).toBeGreaterThan(0);
+    expect(halfBarSections / sampleSize).toBeLessThan(0.12);
   });
 
   it("keeps structural invariants across 1000 seeds", () => {

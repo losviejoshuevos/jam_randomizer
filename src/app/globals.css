@@ -6,6 +6,8 @@
   --foreground: #f5f3e9;
   --muted: #aaa79b;
   --accent: #e3ff63;
+  --accent-hot: #ff4fd8;
+  --accent-cool: #55e7ff;
   --surface: #1d1d19;
 }
 
@@ -20,7 +22,95 @@ body {
 
 body {
   margin: 0;
-  background: var(--background);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(227, 255, 99, 0.13), transparent 28rem),
+    radial-gradient(circle at 95% 12%, rgba(255, 79, 216, 0.1), transparent 30rem),
+    radial-gradient(circle at 55% 100%, rgba(85, 231, 255, 0.07), transparent 32rem),
+    var(--background);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+::selection {
+  background: var(--accent);
+  color: #090a06;
+}
+
+.control-panel,
+.session-strip,
+.history-panel {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), transparent 45%),
+    rgba(29, 29, 25, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    0 18px 55px rgba(0, 0, 0, 0.2);
+}
+
+.jam-card {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 79, 216, 0.09), transparent 24rem),
+    radial-gradient(circle at 0% 100%, rgba(85, 231, 255, 0.055), transparent 22rem),
+    #050505;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 65px rgba(0, 0, 0, 0.26);
+}
+
+.jam-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-cool), var(--accent-hot));
+  opacity: 0.75;
+}
+
+.stage-shell {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 16% 5%, rgba(227, 255, 99, 0.11), transparent 30rem),
+    radial-gradient(circle at 88% 28%, rgba(255, 79, 216, 0.09), transparent 34rem),
+    radial-gradient(circle at 52% 105%, rgba(85, 231, 255, 0.08), transparent 36rem),
+    #050505;
+}
+
+.stage-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 95px, rgba(255, 255, 255, 0.018) 96px),
+    repeating-linear-gradient(0deg, transparent 0 95px, rgba(255, 255, 255, 0.018) 96px);
+  mask-image: linear-gradient(to bottom, black, transparent 82%);
+}
+
+.stage-frame {
+  background: rgba(255, 255, 255, 0.018);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025),
+    0 0 70px rgba(227, 255, 99, 0.035);
+}
+
+.stage-card {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.045), transparent 42%),
+    radial-gradient(circle at 100% 0%, rgba(227, 255, 99, 0.075), transparent 48%),
+    #1b1c18;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.065),
+    0 16px 38px rgba(0, 0, 0, 0.25);
+}
+
+.stage-bars {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 32px rgba(227, 255, 99, 0.18);
 }

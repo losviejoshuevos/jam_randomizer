@@ -16,6 +16,9 @@ import type {
 import { generateSession, retimeSession } from "@/lib/music/generator";
 import { getAvailableChordDefinitions } from "@/lib/music/harmony/availability";
 import { renderRomanChord } from "@/lib/music/rendering/render-roman-chord";
+import { formatRomanChord } from "@/lib/music/rendering/format-roman-chord";
+import { formatChordDuration } from "@/lib/music/rendering/format-chord-duration";
+import { groupChordsForDisplay } from "@/lib/music/rendering/group-chords-for-display";
 import {
   CURRENT_SCHEMA_VERSION,
   MAX_RECENT_SESSIONS,
@@ -132,10 +135,81 @@ function HarmonySectionCard({
         .map((definition) => [definition.roman, definition]),
     ).values(),
   );
+  const chordGroups = groupChordsForDisplay(section.chords);
+  const hasHalfBarPair = chordGroups.some(({ chords }) => chords.length === 2);
+
+  function renderChordEditor(
+    chord: JamChord,
+    index: number,
+    partnerRoman?: string,
+    halfBar = false,
+  ) {
+    const availableOptions = chordOptions.filter(
+      ({ roman }) => roman === chord.roman || roman !== partnerRoman,
+    );
+
+    return (
+      <div
+        className={`flex min-w-0 flex-col justify-center [container-type:inline-size] ${halfBar ? "p-4 text-center sm:p-5" : "overflow-hidden rounded-2xl border border-white/10 bg-[var(--surface)] p-5"}`}
+        key={chord.id}
+      >
+        <div className="flex items-center justify-between text-xs text-[var(--muted)]">
+          <span>{index + 1}</span>
+          {halfBar ? (
+            <span className="font-black uppercase tracking-[0.15em] text-[var(--accent)]">
+              ½ такта
+            </span>
+          ) : (
+            <span className="rounded-full bg-[var(--accent)]/10 px-3 py-1 text-sm font-bold text-[var(--accent)]">
+              {formatChordDuration(chord.durationBars)}
+            </span>
+          )}
+        </div>
+        <p
+          className={`mt-5 min-w-0 whitespace-nowrap font-black leading-none tracking-[-0.04em] ${
+            chord.renderedSymbol.length > 5
+              ? halfBar
+                ? "text-[clamp(1rem,14cqw,2.5rem)]"
+                : "text-[clamp(1rem,16cqw,3rem)]"
+              : halfBar
+                ? "text-[clamp(1.5rem,21cqw,3.25rem)]"
+                : "text-[clamp(1.75rem,22cqw,3.75rem)]"
+          }`}
+        >
+          {chord.renderedSymbol}
+        </p>
+        <p className="mt-3 text-sm font-semibold tracking-[0.12em] text-neutral-400">
+          {formatRomanChord(chord.roman)}
+        </p>
+        <label className="mt-4 block text-left text-xs text-neutral-500">
+          Заменить аккорд
+          <select
+            aria-label={`Аккорд ${section.label}${index + 1}`}
+            className="mt-1 w-full rounded-lg border border-white/10 bg-black/50 px-2 py-2 text-sm text-white"
+            onChange={(event) =>
+              onChordChange(section.id, chord.id, event.target.value)
+            }
+            value={chord.roman}
+          >
+            {availableOptions.map((definition) => (
+              <option key={definition.roman} value={definition.roman}>
+                {renderRomanChord(
+                  definition.roman,
+                  settings.key,
+                  settings.mode,
+                )}{" "}
+                · {formatRomanChord(definition.roman)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    );
+  }
 
   return (
     <section
-      className="flex min-h-[360px] flex-col rounded-3xl border border-white/10 bg-black p-6 sm:p-10"
+      className="jam-card flex min-h-[360px] flex-col rounded-3xl border border-white/10 p-6 sm:p-10"
       data-testid={`harmony-card-${section.label.toLowerCase()}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -153,54 +227,40 @@ function HarmonySectionCard({
         </div>
       </div>
 
-      <div className="my-auto grid gap-3 py-8 sm:grid-cols-2 xl:grid-cols-4">
-        {section.chords.map((chord, index) => (
-          <div
-            className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[var(--surface)] p-5"
-            key={chord.id}
-          >
-            <div className="flex items-center justify-between text-xs text-[var(--muted)]">
-              <span>{index + 1}</span>
-              <span className="rounded-full bg-[var(--accent)]/10 px-3 py-1 text-sm font-bold text-[var(--accent)]">
-                {chord.durationBars} {chord.durationBars === 1 ? "такт" : "такта"}
-              </span>
-            </div>
-            <p
-              className={`mt-5 min-w-0 font-black leading-none tracking-[-0.04em] ${
-                chord.renderedSymbol.length > 5
-                  ? "text-3xl sm:text-4xl"
-                  : "text-4xl sm:text-5xl"
-              }`}
+      <div className={`my-auto grid gap-3 py-8 sm:grid-cols-2 ${hasHalfBarPair ? "xl:grid-cols-3" : "xl:grid-cols-4"}`}>
+        {chordGroups.map((group) =>
+          group.chords.length === 2 ? (
+            <div
+              className="min-w-0 overflow-hidden rounded-2xl border border-white/15 bg-[var(--surface)]"
+              key={group.id}
             >
-              {chord.renderedSymbol}
-            </p>
-            <p className="mt-3 text-sm font-semibold uppercase tracking-[0.16em] text-neutral-400">
-              {chord.roman}
-            </p>
-            <label className="mt-4 block text-xs text-neutral-500">
-              Заменить аккорд
-              <select
-                aria-label={`Аккорд ${section.label}${index + 1}`}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-black/50 px-2 py-2 text-sm text-white"
-                onChange={(event) =>
-                  onChordChange(section.id, chord.id, event.target.value)
-                }
-                value={chord.roman}
-              >
-                {chordOptions.map((definition) => (
-                  <option key={definition.roman} value={definition.roman}>
-                    {renderRomanChord(
-                      definition.roman,
-                      settings.key,
-                      settings.mode,
-                    )}{" "}
-                    · {definition.roman}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        ))}
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-neutral-500">
+                  Один такт · две смены
+                </span>
+                <span className="rounded-full bg-[var(--accent)]/10 px-3 py-1 text-sm font-black text-[var(--accent)]">
+                  1 такт
+                </span>
+              </div>
+              <div className="grid grid-cols-2 divide-x divide-white/10">
+                {renderChordEditor(
+                  group.chords[0]!,
+                  group.startIndex,
+                  group.chords[1]?.roman,
+                  true,
+                )}
+                {renderChordEditor(
+                  group.chords[1]!,
+                  group.startIndex + 1,
+                  group.chords[0]?.roman,
+                  true,
+                )}
+              </div>
+            </div>
+          ) : (
+            renderChordEditor(group.chords[0]!, group.startIndex)
+          ),
+        )}
       </div>
     </section>
   );
@@ -243,6 +303,10 @@ export function FunkGenerator() {
   const [persistenceMessage, setPersistenceMessage] = useState<string | null>(
     null,
   );
+  const chordEditingSettings: ResolvedGenerationSettings = {
+    ...card.settings,
+    harmonicFreedom: settings.harmonicFreedom,
+  };
 
   useEffect(() => {
     const restoreTimer = window.setTimeout(() => {
@@ -380,9 +444,37 @@ export function FunkGenerator() {
   function replaceChord(sectionId: string, chordId: string, roman: string) {
     const definition = getAvailableChordDefinitions(
       funkStyleProfile,
-      card.settings,
+      chordEditingSettings,
     ).find((item) => item.roman === roman);
     if (!definition) return;
+
+    const targetSection = card.session.sections.find(
+      (section) => section.id === sectionId,
+    );
+    const chordIndex = targetSection?.chords.findIndex(
+      (chord) => chord.id === chordId,
+    );
+    const targetChord =
+      chordIndex === undefined || chordIndex < 0
+        ? undefined
+        : targetSection?.chords[chordIndex];
+    const previousChord =
+      chordIndex === undefined || chordIndex < 1
+        ? undefined
+        : targetSection?.chords[chordIndex - 1];
+    const nextHalfChord =
+      chordIndex === undefined || chordIndex < 0
+        ? undefined
+        : targetSection?.chords[chordIndex + 1];
+    const duplicatesHalfBarPartner =
+      targetChord?.durationBars === 0.5 &&
+      ((previousChord?.durationBars === 0.5 && previousChord.roman === roman) ||
+        (nextHalfChord?.durationBars === 0.5 && nextHalfChord.roman === roman));
+
+    if (duplicatesHalfBarPartner) {
+      setError("В двух половинах одного такта должны быть разные аккорды.");
+      return;
+    }
 
     const nextChord = (chord: JamChord): JamChord =>
       chord.id === chordId
@@ -400,14 +492,20 @@ export function FunkGenerator() {
         : chord;
     const nextSession: JamSession = {
       ...card.session,
+      harmonicFreedom: chordEditingSettings.harmonicFreedom,
       sections: card.session.sections.map((section) =>
         section.id === sectionId
           ? { ...section, chords: section.chords.map(nextChord) }
           : section,
       ),
     };
-    setCard((current) => ({ ...current, session: nextSession }));
-    saveCurrentSession(nextSession, settings);
+    setCard((current) => ({
+      ...current,
+      settings: chordEditingSettings,
+      session: nextSession,
+    }));
+    saveCurrentSession(nextSession, chordEditingSettings);
+    setError(null);
   }
 
   async function copyCardCode() {
@@ -452,7 +550,7 @@ export function FunkGenerator() {
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-5 py-8 sm:px-8 lg:py-12">
+    <main className="editor-shell mx-auto min-h-screen max-w-7xl px-5 py-8 sm:px-8 lg:py-12">
       <header className="mb-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.28em] text-[var(--accent)]">
@@ -470,7 +568,7 @@ export function FunkGenerator() {
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        <section className="rounded-3xl border border-white/10 bg-[var(--surface)] p-5 sm:p-6">
+        <section className="control-panel rounded-3xl border border-white/10 p-5 sm:p-6">
           <h2 className="text-lg font-bold">Настройки</h2>
           <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-1">
             <label className="text-sm text-[var(--muted)]">
@@ -526,7 +624,7 @@ export function FunkGenerator() {
             </label>
 
             <label className="text-sm text-[var(--muted)]">
-              Сложность
+              Сложность аккордов
               <select
                 className={FIELD_CLASS}
                 onChange={(event) =>
@@ -683,19 +781,19 @@ export function FunkGenerator() {
           </div>
 
           <button
-            className="mt-6 w-full rounded-xl bg-[var(--accent)] px-5 py-3 font-bold text-black transition hover:brightness-90 active:scale-[0.99]"
-            onClick={generateNewHarmony}
-            type="button"
-          >
-            Новая гармония
-          </button>
-
-          <button
-            className="mt-3 w-full rounded-xl border border-[var(--accent)]/60 px-5 py-3 font-bold text-[var(--accent)] transition hover:bg-[var(--accent)]/10"
+            className="mt-6 w-full rounded-xl border border-[var(--accent)]/60 px-5 py-3 font-bold text-[var(--accent)] transition hover:bg-[var(--accent)]/10"
             onClick={applyTimingSettings}
             type="button"
           >
             Применить темп и длительности
+          </button>
+
+          <button
+            className="mt-3 w-full rounded-xl bg-[var(--accent)] px-5 py-3 font-bold text-black transition hover:brightness-90 active:scale-[0.99]"
+            onClick={generateNewHarmony}
+            type="button"
+          >
+            Новая гармония
           </button>
 
           {error ? (
@@ -714,7 +812,7 @@ export function FunkGenerator() {
         </section>
 
         <div className="space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[var(--surface)] px-5 py-4">
+          <div className="session-strip flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 px-5 py-4">
             <h2 className="text-2xl font-black sm:text-3xl">
               {card.settings.key} {card.settings.mode}
             </h2>
@@ -729,7 +827,7 @@ export function FunkGenerator() {
               key={section.id}
               onChordChange={replaceChord}
               section={section}
-              settings={card.settings}
+              settings={chordEditingSettings}
               warningSeconds={
                 card.session.timeline.find(
                   ({ sectionId }) => sectionId === section.id,
@@ -759,7 +857,7 @@ export function FunkGenerator() {
         </div>
       </div>
 
-      <section className="mt-8 rounded-3xl border border-white/10 bg-[var(--surface)] p-5 sm:p-6">
+      <section className="history-panel mt-8 rounded-3xl border border-white/10 p-5 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.24em] text-[var(--accent)]">

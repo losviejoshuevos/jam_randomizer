@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { funkStyleProfile } from "@/data/styles";
 import type { Mode, PitchClass } from "@/lib/music/domain/types";
 import { renderRomanChord } from "@/lib/music/rendering/render-roman-chord";
+import { formatRomanChord } from "@/lib/music/rendering/format-roman-chord";
 
 describe("renderRomanChord", () => {
   it.each([
@@ -13,6 +14,7 @@ describe("renderRomanChord", () => {
     ["V13/V", "C", "major", "D13"],
     ["Imaj9", "C", "major", "Cmaj9"],
     ["i11", "C", "minor", "Cm11"],
+    ["i13", "C", "minor", "Cm13"],
     ["V7#9", "C", "major", "G7#9"],
     ["bVII7", "F", "major", "Eb7"],
   ] as const)("renders %s in %s %s as %s", (roman, key, mode, expected) => {
@@ -48,5 +50,14 @@ describe("renderRomanChord", () => {
     expect(() => renderRomanChord("DD7", "C", "major")).toThrow(
       "Unsupported RomanChord",
     );
+  });
+
+  it.each([
+    ["i11", "i11"],
+    ["V7", "V7"],
+    ["bVImaj9", "♭VImaj9"],
+    ["#iv7", "♯iv7"],
+  ])("formats %s without destroying chord-quality casing", (roman, expected) => {
+    expect(formatRomanChord(roman)).toBe(expected);
   });
 });

@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import type { JamSection, JamSession } from "@/lib/music/domain/types";
 import { createJamPersistence } from "@/lib/persistence/local-storage";
 import { RouteLink } from "@/components/ui/route-link";
+import { formatRomanChord } from "@/lib/music/rendering/format-roman-chord";
+import { formatChordDuration } from "@/lib/music/rendering/format-chord-duration";
+import { groupChordsForDisplay } from "@/lib/music/rendering/group-chords-for-display";
 
 interface PlaybackState {
   stepIndex: number;
@@ -29,37 +32,95 @@ function SectionGrid({
   section: JamSection;
   compact?: boolean;
 }) {
+  const chordGroups = groupChordsForDisplay(section.chords);
+  const isSingleChord =
+    chordGroups.length === 1 && chordGroups[0]?.chords.length === 1;
+  const columnClass = compact
+    ? section.chords.length === 1
+      ? "grid-cols-1"
+      : "grid-cols-2"
+    : section.chords.length === 1
+      ? "grid-cols-1"
+      : section.chords.length === 2
+        ? "sm:grid-cols-2"
+        : section.chords.length === 3
+          ? "sm:grid-cols-2 xl:grid-cols-3"
+        : "sm:grid-cols-2 xl:grid-cols-4";
+
   return (
-    <div
-      className={`grid h-full gap-3 ${compact ? "grid-cols-2" : "auto-rows-fr sm:grid-cols-2 xl:grid-cols-4"}`}
-    >
-      {section.chords.map((chord, index) => (
-        <div
-          className={`min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[var(--surface)] ${compact ? "p-3" : "flex flex-col justify-center p-5 sm:p-7"}`}
-          key={chord.id}
-        >
-          <div className="flex items-center justify-between text-xs text-neutral-500">
-            <span>{index + 1}</span>
-            <span className={`${compact ? "text-xs" : "rounded-full bg-[var(--accent)]/10 px-3 py-1 text-base font-bold text-[var(--accent)]"}`}>
-              {chord.durationBars} {compact ? "т." : chord.durationBars === 1 ? "такт" : "такта"}
-            </span>
-          </div>
-          <p
-            className={`mt-4 min-w-0 font-black leading-none tracking-[-0.04em] ${
-              compact
-                ? "text-2xl"
-                : chord.renderedSymbol.length > 5
-                  ? "text-[clamp(2.5rem,6vw,7rem)]"
-                  : "text-[clamp(3.5rem,8vw,9rem)]"
-            }`}
+    <div className={`grid h-full auto-rows-fr gap-3 ${columnClass}`}>
+      {chordGroups.map((group) => {
+        if (group.chords.length === 2) {
+          return (
+            <div
+              className="stage-card relative col-span-2 grid min-w-0 grid-cols-2 overflow-hidden rounded-2xl border border-[var(--accent)]/30 shadow-[0_0_28px_rgba(220,255,65,0.06)]"
+              key={group.id}
+            >
+              <div className={`stage-bars absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full border border-[var(--accent)]/50 bg-[#161a0d] font-black uppercase text-[var(--accent)] shadow-[0_0_24px_rgba(220,255,65,0.18)] ${compact ? "px-3 py-1 text-xs" : "px-5 py-2 text-base sm:text-xl"}`}>
+                1 такт · ½ + ½
+              </div>
+              {group.chords.map((chord, halfIndex) => (
+                <div
+                  className={`flex min-w-0 flex-col justify-center [container-type:inline-size] ${halfIndex === 0 ? "border-r border-white/15" : ""} ${compact ? "p-3 pt-12" : "p-4 pt-16 sm:p-5 sm:pt-20"}`}
+                  key={chord.id}
+                >
+                  <div className="flex items-center justify-between text-xs text-neutral-500">
+                    <span>{group.startIndex + halfIndex + 1}</span>
+                    <span className={`${compact ? "text-sm" : "text-lg sm:text-2xl"} font-black uppercase tracking-[0.08em] text-[var(--accent)]`}>
+                      {halfIndex === 0 ? "1-я половина" : "2-я половина"}
+                    </span>
+                  </div>
+                  <p
+                    className={`mt-4 min-w-0 whitespace-nowrap font-black leading-none tracking-[-0.05em] ${
+                      compact
+                        ? "text-2xl"
+                        : chord.renderedSymbol.length > 5
+                          ? "text-[clamp(2rem,18cqw,9rem)]"
+                          : "text-[clamp(3rem,30cqw,12rem)]"
+                    }`}
+                  >
+                    {chord.renderedSymbol}
+                  </p>
+                  <p className={`${compact ? "text-xs" : "text-xl"} mt-3 font-semibold tracking-[0.12em] text-neutral-400`}>
+                    {formatRomanChord(chord.roman)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          );
+        }
+
+        const chord = group.chords[0];
+        if (!chord) return null;
+
+        return (
+          <div
+            className={`stage-card min-w-0 overflow-hidden rounded-2xl border border-white/10 [container-type:inline-size] ${compact ? "p-3" : `flex flex-col justify-center p-4 sm:p-5 ${isSingleChord ? "items-center text-center" : ""}`}`}
+            key={group.id}
           >
-            {chord.renderedSymbol}
-          </p>
-          <p className={`${compact ? "text-xs" : "text-lg"} mt-3 font-semibold uppercase tracking-[0.16em] text-neutral-400`}>
-            {chord.roman}
-          </p>
-        </div>
-      ))}
+            <div className="flex w-full items-center justify-between text-xs text-neutral-500">
+              <span>{group.startIndex + 1}</span>
+              <span className={`${compact ? "text-base font-black text-[var(--accent)]" : "stage-bars rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent)]/15 px-5 py-3 text-2xl font-black text-[var(--accent)] sm:text-4xl"}`}>
+                {formatChordDuration(chord.durationBars).toUpperCase()}
+              </span>
+            </div>
+            <p
+              className={`mt-4 min-w-0 whitespace-nowrap font-black leading-none tracking-[-0.05em] ${
+                compact
+                  ? "text-2xl"
+                  : chord.renderedSymbol.length > 5
+                    ? "text-[clamp(2rem,18cqw,9rem)]"
+                    : "text-[clamp(3rem,30cqw,12rem)]"
+              }`}
+            >
+              {chord.renderedSymbol}
+            </p>
+            <p className={`${compact ? "text-xs" : "text-xl"} mt-3 font-semibold tracking-[0.12em] text-neutral-400`}>
+              {formatRomanChord(chord.roman)}
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -229,7 +290,7 @@ export function StageSession() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-black px-4 py-5 text-white sm:px-8">
+    <main className="stage-shell flex min-h-screen flex-col px-4 py-5 text-white sm:px-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.28em] text-[var(--accent)]">
@@ -255,7 +316,7 @@ export function StageSession() {
       <div
         className={`mt-6 grid min-h-[55vh] flex-1 gap-5 transition-all duration-700 ${warningActive && nextSection ? "lg:grid-cols-[1fr_360px]" : "grid-cols-1"}`}
       >
-          <section className="h-full rounded-3xl border border-white/10 bg-white/[0.02] p-5 sm:p-8">
+          <section className="stage-frame h-full rounded-3xl border border-white/10 p-5 sm:p-8">
           <SectionGrid section={currentSection} />
         </section>
 

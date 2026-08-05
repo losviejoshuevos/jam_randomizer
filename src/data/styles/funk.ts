@@ -266,6 +266,16 @@ const chordVocabulary: ChordDefinition[] = [
     tags: ["vamp"],
   },
   {
+    roman: "i13",
+    harmonicFunction: "tonic",
+    weight: 4,
+    minimumComplexity: "advanced",
+    allowedComplexities: ["advanced"],
+    allowedModes: ["minor"],
+    tonalSource: { kind: "parallel-mode" },
+    tags: ["vamp", "dorian-color"],
+  },
+  {
     roman: "IVmaj9",
     harmonicFunction: "predominant",
     weight: 5,
@@ -491,6 +501,14 @@ const harmonicChordPatterns: HarmonicChordPattern[] = [
     allowedModes: ["minor"],
   },
   {
+    id: "advanced-minor-13-vamp",
+    romanChords: ["i13"],
+    weight: 4,
+    allowedSections: ["A"],
+    allowedComplexities: ["advanced"],
+    allowedModes: ["minor"],
+  },
+  {
     id: "dorian-two-chord-medium",
     romanChords: ["i7", "IV9"],
     weight: 7,
@@ -602,16 +620,6 @@ export const funkStyleProfile = {
   harmonicRhythms: [
     {
       value: {
-        id: "eight-bar-vamp",
-        durationsBars: [8],
-        minimumComplexity: "easy",
-        allowedMeters: ["4/4", "3/4"],
-        allowedSections: ["A"],
-      },
-      weight: 5,
-    },
-    {
-      value: {
         id: "four-bar-vamp",
         durationsBars: [4],
         minimumComplexity: "easy",
@@ -639,6 +647,26 @@ export const funkStyleProfile = {
         allowedSections: ["A", "B"],
       },
       weight: 2,
+    },
+    {
+      value: {
+        id: "half-bar-push",
+        durationsBars: [1, 0.5, 0.5, 2],
+        minimumComplexity: "medium",
+        allowedMeters: ["4/4"],
+        allowedSections: ["A", "B"],
+      },
+      weight: 0.35,
+    },
+    {
+      value: {
+        id: "half-bar-pickup",
+        durationsBars: [0.5, 0.5, 1, 2],
+        minimumComplexity: "medium",
+        allowedMeters: ["4/4"],
+        allowedSections: ["A", "B"],
+      },
+      weight: 0.35,
     },
   ],
   sectionRules: {
