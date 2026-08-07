@@ -1,10 +1,12 @@
 import type {
   GenerationSettings,
   JamSession,
+  SectionHarmonySettings,
+  SectionLabel,
   ThemeId,
 } from "../music/domain/types";
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 export const MAX_RECENT_SESSIONS = 10;
 
 export interface PersistedJamState {
@@ -12,6 +14,8 @@ export interface PersistedJamState {
   currentSession: JamSession | null;
   recentSessions: JamSession[];
   latestSettings: GenerationSettings | null;
+  appliedTimingSettings?: GenerationSettings | null;
+  latestSectionSettings?: Record<SectionLabel, SectionHarmonySettings> | null;
   selectedTheme: ThemeId;
 }
 

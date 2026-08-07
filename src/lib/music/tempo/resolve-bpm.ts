@@ -40,3 +40,17 @@ export function resolveBpm(
 
   return randomRange.min + Math.floor(random.next() * valueCount);
 }
+
+export function resolveDifferentRandomBpm(
+  currentBpm: number,
+  randomRange: BpmRange,
+  seed: Seed,
+): number {
+  const resolved = resolveBpm("random", randomRange, seed);
+  if (resolved !== currentBpm || randomRange.min === randomRange.max) {
+    return resolved;
+  }
+
+  const valueCount = randomRange.max - randomRange.min + 1;
+  return randomRange.min + ((resolved - randomRange.min + 1) % valueCount);
+}

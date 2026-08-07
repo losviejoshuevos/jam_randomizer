@@ -27,14 +27,22 @@ export function generateSession(
   const { seed, settings, styleProfile } = request;
   const bpm = resolveBpm(settings.bpm, styleProfile.bpmRange, seed);
   const resolvedSettings: GenerationSettings = { ...settings, bpm };
+  const sectionASettings: GenerationSettings = {
+    ...resolvedSettings,
+    ...request.sectionSettings?.A,
+  };
+  const sectionBSettings: GenerationSettings = {
+    ...resolvedSettings,
+    ...request.sectionSettings?.B,
+  };
   const sectionAResult = generateSectionA({
     seed: deriveSeed(seed, "section:A"),
-    settings: resolvedSettings,
+    settings: sectionASettings,
     styleProfile,
   });
   const sectionBResult = generateSectionB({
     seed: deriveSeed(seed, "section:B"),
-    settings: resolvedSettings,
+    settings: sectionBSettings,
     styleProfile,
     sectionA: sectionAResult.value,
   });
@@ -89,7 +97,7 @@ export function generateSession(
       transitionWarningSeconds: Math.max(sectionAWarning, sectionBWarning),
       theme: "dark",
       createdAt: new Date().toISOString(),
-      schemaVersion: 1,
+      schemaVersion: 2,
     },
     attempts: sectionAResult.attempts + sectionBResult.attempts,
     usedFallback: sectionAResult.usedFallback || sectionBResult.usedFallback,

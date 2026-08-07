@@ -10,6 +10,7 @@ import { getAvailableChordDefinitions } from "../harmony/availability";
 import { diversifyHalfBarChords } from "../harmony/diversify-half-bar-chords";
 import { selectHarmonicChordPattern } from "../harmony/select-chord-pattern";
 import { selectChordDefinitions } from "../harmony/select-chords";
+import { selectSectionStartDefinition } from "../harmony/select-section-start";
 import { createSeededRandom, deriveSeed, weightedChoice } from "../random";
 import { renderRomanChord } from "../rendering/render-roman-chord";
 import { generateHarmonicRhythm } from "../structure/harmonic-rhythm";
@@ -54,6 +55,7 @@ function createAttempt(
   attemptSeed: Seed,
   settings: GenerationSettings,
   profile: StyleProfile,
+  startsOnRootTonic: boolean,
 ): JamSection {
   const random = createSeededRandom(attemptSeed);
   const bars = weightedChoice(profile.sectionRules.A.bars, random);
@@ -86,6 +88,13 @@ function createAttempt(
       settings,
       random,
     ).definitions;
+  selectedDefinitions[0] = selectSectionStartDefinition(
+    profile,
+    settings,
+    "A",
+    startsOnRootTonic,
+    random,
+  );
   const definitions = diversifyHalfBarChords(
     selectedDefinitions,
     durations,
@@ -103,6 +112,12 @@ function createAttempt(
     repeats: 1,
     locked: false,
     generationSeed: attemptSeed,
+    harmonySettings: {
+      key: settings.key,
+      mode: settings.mode,
+      complexity: settings.complexity,
+      harmonicFreedom: settings.harmonicFreedom,
+    },
     chords: materializeChords(definitions, durations, attemptSeed, settings),
   };
 }
@@ -142,6 +157,12 @@ function createSafeFallback(
     repeats: 1,
     locked: false,
     generationSeed: fallbackSeed,
+    harmonySettings: {
+      key: settings.key,
+      mode: settings.mode,
+      complexity: settings.complexity,
+      harmonicFreedom: settings.harmonicFreedom,
+    },
     chords: materializeChords(
       definitions,
       [4],
@@ -155,6 +176,9 @@ export function generateSectionA(
   request: GenerateSectionARequest,
 ): GenerationResult<JamSection> {
   const { seed, settings, styleProfile } = request;
+  const startsOnRootTonic =
+    createSeededRandom(deriveSeed(seed, "section:A:start-root-tonic")).next() <
+    0.7;
 
   for (
     let attempt = 0;
@@ -162,7 +186,12 @@ export function generateSectionA(
     attempt += 1
   ) {
     const attemptSeed = deriveSeed(seed, `section:A:attempt:${attempt}`);
-    const section = createAttempt(attemptSeed, settings, styleProfile);
+    const section = createAttempt(
+      attemptSeed,
+      settings,
+      styleProfile,
+      startsOnRootTonic,
+    );
     const validation = validateGeneratedSection(
       section,
       "A",

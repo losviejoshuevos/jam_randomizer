@@ -12,13 +12,14 @@ export function retimeSession(
   const warnings = new Map(
     session.sections.map((section) => [
       section.id,
-      calculateTransitionWarningSeconds(section.bars, bpm, session.meter),
+      calculateTransitionWarningSeconds(section.bars, bpm, settings.meter),
     ]),
   );
 
   return {
     ...session,
     bpm,
+    meter: settings.meter,
     timeline: session.timeline.map((step, index) => ({
       ...step,
       durationSeconds:

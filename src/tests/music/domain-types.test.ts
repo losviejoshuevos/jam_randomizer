@@ -24,6 +24,12 @@ describe("JamSession timeline", () => {
           repeats: 1,
           locked: false,
           generationSeed: "seed-a",
+          harmonySettings: {
+            key: "C",
+            mode: "minor",
+            complexity: "easy",
+            harmonicFreedom: "colorful",
+          },
           chords: [],
         },
         {
@@ -35,6 +41,12 @@ describe("JamSession timeline", () => {
           repeats: 1,
           locked: false,
           generationSeed: "seed-b",
+          harmonySettings: {
+            key: "C",
+            mode: "minor",
+            complexity: "easy",
+            harmonicFreedom: "colorful",
+          },
           chords: [],
         },
       ],

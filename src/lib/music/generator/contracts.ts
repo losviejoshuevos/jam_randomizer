@@ -2,6 +2,8 @@ import type {
   GenerationSettings,
   JamSection,
   JamSession,
+  SectionHarmonySettings,
+  SectionLabel,
   SectionId,
   Seed,
 } from "../domain/types";
@@ -27,6 +29,15 @@ export interface GenerationResult<T> {
 export interface GenerateSessionRequest {
   seed: Seed;
   settings: GenerationSettings;
+  styleProfile: StyleProfile;
+  sectionSettings?: Partial<Record<SectionLabel, SectionHarmonySettings>>;
+}
+
+export interface RegenerateSessionSectionsRequest {
+  session: JamSession;
+  sectionLabels: SectionLabel[];
+  sectionSettings: Record<SectionLabel, SectionHarmonySettings>;
+  seed: Seed;
   styleProfile: StyleProfile;
 }
 

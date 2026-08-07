@@ -6,7 +6,11 @@ import type {
   HarmonicFreedom,
   Mode,
 } from "@/lib/music/domain/types";
-import { generateSession, retimeSession } from "@/lib/music/generator";
+import {
+  generateSession,
+  regenerateSessionSections,
+  retimeSession,
+} from "@/lib/music/generator";
 import { validateGeneratedSection } from "@/lib/music/validation/validate-section";
 
 function settings(
@@ -111,6 +115,24 @@ describe("generateSession", () => {
     }
   });
 
+  it("starts theme B on the root tonic about 40% of the time", () => {
+    let tonicStarts = 0;
+    const sampleSize = 1_000;
+
+    for (let seed = 0; seed < sampleSize; seed += 1) {
+      const session = generateSession({
+        seed: `theme-b-start-${seed}`,
+        settings: settings("medium", "colorful", "minor"),
+        styleProfile: funkStyleProfile,
+      }).value;
+      const firstRoman = session.sections[1]?.chords[0]?.roman;
+      if (firstRoman && /^i(?:\d|$)/.test(firstRoman)) tonicStarts += 1;
+    }
+
+    expect(tonicStarts / sampleSize).toBeGreaterThan(0.35);
+    expect(tonicStarts / sampleSize).toBeLessThan(0.45);
+  });
+
   it("changes only session timing when tempo settings are applied", () => {
     const original = generateSession({
       seed: "retime-existing-card",
@@ -120,7 +142,8 @@ describe("generateSession", () => {
     const originalHarmony = original.sections.map((section) => section.chords);
     const nextSettings = {
       ...settings("advanced", "colorful", "minor"),
-      bpm: 93,
+      bpm: 60,
+      meter: "3/4" as const,
       timing: {
         sectionADurationSeconds: 210,
         sectionBDurationSeconds: 75,
@@ -134,7 +157,8 @@ describe("generateSession", () => {
     expect(retimed.sections.map((section) => section.chords)).toEqual(
       originalHarmony,
     );
-    expect(retimed.bpm).toBe(93);
+    expect(retimed.bpm).toBe(60);
+    expect(retimed.meter).toBe("3/4");
     expect(retimed.timeline.map((step) => step.durationSeconds)).toEqual([
       210,
       75,
@@ -143,5 +167,69 @@ describe("generateSession", () => {
     expect(retimed.timeline[0]?.transitionWarningSeconds).not.toBe(
       original.timeline[0]?.transitionWarningSeconds,
     );
+  });
+
+  it("stores independent harmony settings for A and B", () => {
+    const base = settings("easy", "strict", "minor");
+    const result = generateSession({
+      seed: "independent-section-settings",
+      settings: base,
+      sectionSettings: {
+        A: {
+          key: "A",
+          mode: "minor",
+          complexity: "medium",
+          harmonicFreedom: "strict",
+        },
+        B: {
+          key: "D",
+          mode: "major",
+          complexity: "easy",
+          harmonicFreedom: "adventurous",
+        },
+      },
+      styleProfile: funkStyleProfile,
+    });
+
+    expect(result.value.sections[0]?.harmonySettings).toMatchObject({
+      key: "A",
+      mode: "minor",
+      complexity: "medium",
+      harmonicFreedom: "strict",
+    });
+    expect(result.value.sections[1]?.harmonySettings).toMatchObject({
+      key: "D",
+      mode: "major",
+      complexity: "easy",
+      harmonicFreedom: "adventurous",
+    });
+  });
+
+  it("regenerates only focused themes and preserves the others", () => {
+    const original = generateSession({
+      seed: "focus-original",
+      settings: settings("easy", "strict", "minor"),
+      styleProfile: funkStyleProfile,
+    }).value;
+    const originalB = original.sections[1];
+    const next = regenerateSessionSections({
+      session: original,
+      sectionLabels: ["A"],
+      sectionSettings: {
+        A: {
+          key: "F#",
+          mode: "major",
+          complexity: "advanced",
+          harmonicFreedom: "adventurous",
+        },
+        B: originalB!.harmonySettings,
+      },
+      seed: "focus-next",
+      styleProfile: funkStyleProfile,
+    }).value;
+
+    expect(next.sections[0]?.harmonySettings.key).toBe("F#");
+    expect(next.sections[1]).toEqual(originalB);
+    expect(next.timeline[1]?.sectionId).toBe(originalB?.id);
   });
 });

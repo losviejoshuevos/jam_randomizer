@@ -10,6 +10,7 @@ import type {
 import { getAvailableChordDefinitions } from "../harmony/availability";
 import { diversifyHalfBarChords } from "../harmony/diversify-half-bar-chords";
 import { selectChordDefinitions } from "../harmony/select-chords";
+import { selectSectionStartDefinition } from "../harmony/select-section-start";
 import { createSeededRandom, deriveSeed, weightedChoice } from "../random";
 import { renderRomanChord } from "../rendering/render-roman-chord";
 import { generateHarmonicRhythm } from "../structure/harmonic-rhythm";
@@ -119,8 +120,8 @@ function createAttempt(
   attemptSeed: Seed,
   settings: GenerationSettings,
   profile: StyleProfile,
-  sectionA: JamSection,
   role: Exclude<SectionRole, "theme">,
+  startsOnRootTonic: boolean,
 ): JamSection {
   const random = createSeededRandom(attemptSeed);
   const bars = weightedChoice(profile.sectionRules.B.bars, random);
@@ -147,21 +148,15 @@ function createAttempt(
     settings,
     random,
   );
-
-  if (role === "chorus") {
-    const themeTonic = sectionA.chords.find(
-      ({ harmonicFunction }) => harmonicFunction === "tonic",
-    );
-    const returningTonic = availableDefinitions.find(
-      ({ harmonicFunction, roman }) =>
-        harmonicFunction === "tonic" && roman === themeTonic?.roman,
-    );
-
-    if (returningTonic) {
-      selected.functions[selected.functions.length - 1] = "tonic";
-      selected.definitions[selected.definitions.length - 1] = returningTonic;
-    }
-  }
+  const startingDefinition = selectSectionStartDefinition(
+    profile,
+    settings,
+    "B",
+    startsOnRootTonic,
+    random,
+  );
+  selected.functions[0] = startingDefinition.harmonicFunction;
+  selected.definitions[0] = startingDefinition;
 
   const definitions = diversifyHalfBarChords(
     selected.definitions,
@@ -170,6 +165,18 @@ function createAttempt(
     settings,
     random,
   );
+
+  if (role === "chorus") {
+    const returningTonic = availableDefinitions.find(
+      ({ harmonicFunction, roman }) =>
+        harmonicFunction === "tonic" &&
+        (/^I(?:maj|\d|$)/.test(roman) || /^i(?:\d|$)/.test(roman)),
+    );
+
+    if (returningTonic) {
+      definitions[definitions.length - 1] = returningTonic;
+    }
+  }
 
   return {
     id: `section-${deriveSeed(attemptSeed, "id")}`,
@@ -180,6 +187,12 @@ function createAttempt(
     repeats: 1,
     locked: false,
     generationSeed: attemptSeed,
+    harmonySettings: {
+      key: settings.key,
+      mode: settings.mode,
+      complexity: settings.complexity,
+      harmonicFreedom: settings.harmonicFreedom,
+    },
     chords: materializeChords(
       definitions,
       durations,
@@ -229,6 +242,12 @@ function createFallback(
     repeats: 1,
     locked: false,
     generationSeed: attemptSeed,
+    harmonySettings: {
+      key: settings.key,
+      mode: settings.mode,
+      complexity: settings.complexity,
+      harmonicFreedom: settings.harmonicFreedom,
+    },
     chords: materializeChords(selected.definitions, [2, 2], attemptSeed, settings),
   };
 }
@@ -238,6 +257,9 @@ export function generateSectionB(
 ): GenerationResult<JamSection> {
   const { seed, settings, styleProfile, sectionA } = request;
   const role = chooseDevelopmentRole(seed);
+  const startsOnRootTonic =
+    createSeededRandom(deriveSeed(seed, "section:B:start-root-tonic")).next() <
+    0.4;
 
   for (
     let attempt = 0;
@@ -249,8 +271,8 @@ export function generateSectionB(
       attemptSeed,
       settings,
       styleProfile,
-      sectionA,
       role,
+      startsOnRootTonic,
     );
     const validation = validateGeneratedSection(
       section,

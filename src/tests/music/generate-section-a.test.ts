@@ -186,7 +186,7 @@ describe("generateSectionA", () => {
 
         expect(
           result.value.chords.every(({ roman }) =>
-            /(?:maj9|11|13|7#9|7b9)/.test(roman ?? "") ||
+            /(?:maj9|iii9|11|13|7#9|7b9)/.test(roman ?? "") ||
               (mode === "minor" && /(?:i7|i9)/.test(roman ?? "")),
           ),
           `seed advanced-extensions-${mode}-${seed}`,
@@ -337,8 +337,50 @@ describe("generateSectionA", () => {
         valid: true,
         issues: [],
       });
-      expect(result.value.chords[0]?.harmonicFunction).toBe("tonic");
+      expect(
+        funkStyleProfile.sectionRules.A.allowedStartFunctions.some(
+          ({ value }) => value === result.value.chords[0]?.harmonicFunction,
+        ),
+      ).toBe(true);
       expect(result.usedFallback).toBe(false);
     }
+  });
+
+  it("starts theme A on the root tonic about 70% of the time", () => {
+    let tonicStarts = 0;
+    const sampleSize = 1_000;
+
+    for (let seed = 0; seed < sampleSize; seed += 1) {
+      const firstRoman = generateSectionA({
+        seed: `theme-a-start-rate-${seed}`,
+        settings: settings("colorful", "medium", "major"),
+        styleProfile: funkStyleProfile,
+      }).value.chords[0]?.roman;
+
+      if (firstRoman && (/^I(?:maj|\d|$)/.test(firstRoman))) tonicStarts += 1;
+    }
+
+    expect(tonicStarts / sampleSize).toBeGreaterThan(0.65);
+    expect(tonicStarts / sampleSize).toBeLessThan(0.75);
+  });
+
+  it("uses third-degree tonic substitutes rarely", () => {
+    let sectionsWithThirdDegree = 0;
+    const sampleSize = 1_000;
+
+    for (let seed = 0; seed < sampleSize; seed += 1) {
+      const section = generateSectionA({
+        seed: `third-degree-${seed}`,
+        settings: settings("strict", "medium", "major"),
+        styleProfile: funkStyleProfile,
+      }).value;
+
+      if (section.chords.some(({ roman }) => roman === "iii7")) {
+        sectionsWithThirdDegree += 1;
+      }
+    }
+
+    expect(sectionsWithThirdDegree).toBeGreaterThan(0);
+    expect(sectionsWithThirdDegree / sampleSize).toBeLessThan(0.25);
   });
 });

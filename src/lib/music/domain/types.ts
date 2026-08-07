@@ -73,7 +73,15 @@ export interface JamSection {
   repeats: number;
   locked: boolean;
   generationSeed: Seed;
+  harmonySettings: SectionHarmonySettings;
   chords: JamChord[];
+}
+
+export interface SectionHarmonySettings {
+  key: PitchClass;
+  mode: Mode;
+  complexity: Complexity;
+  harmonicFreedom: HarmonicFreedom;
 }
 
 export interface TimelineStep {

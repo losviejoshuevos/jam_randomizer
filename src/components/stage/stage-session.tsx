@@ -25,6 +25,13 @@ function formatTime(totalSeconds: number): string {
   return `${minutesPart}:${secondsPart}`;
 }
 
+function formatSectionSettings(section: JamSection): string {
+  const settings = section.harmonySettings;
+  if (!settings) return "";
+
+  return `${settings.key} ${settings.mode === "major" ? "мажор" : "минор"} · ${settings.complexity} · ${settings.harmonicFreedom}`;
+}
+
 function SectionGrid({
   section,
   compact = false,
@@ -56,7 +63,7 @@ function SectionGrid({
               className="stage-card relative col-span-2 grid min-w-0 grid-cols-2 overflow-hidden rounded-2xl border border-[var(--accent)]/30 shadow-[0_0_28px_rgba(220,255,65,0.06)]"
               key={group.id}
             >
-              <div className={`stage-bars absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full border border-[var(--accent)]/50 bg-[#161a0d] font-black uppercase text-[var(--accent)] shadow-[0_0_24px_rgba(220,255,65,0.18)] ${compact ? "px-3 py-1 text-xs" : "px-5 py-2 text-base sm:text-xl"}`}>
+              <div className={`stage-bars absolute right-3 top-3 z-10 whitespace-nowrap rounded-full border border-[var(--accent)]/50 bg-[#161a0d] font-black uppercase text-[var(--accent)] shadow-[0_0_24px_rgba(220,255,65,0.18)] ${compact ? "px-3 py-1 text-xs" : "px-5 py-2 text-base sm:text-xl"}`}>
                 1 такт · ½ + ½
               </div>
               {group.chords.map((chord, halfIndex) => (
@@ -95,17 +102,17 @@ function SectionGrid({
 
         return (
           <div
-            className={`stage-card min-w-0 overflow-hidden rounded-2xl border border-white/10 [container-type:inline-size] ${compact ? "p-3" : `flex flex-col justify-center p-4 sm:p-5 ${isSingleChord ? "items-center text-center" : ""}`}`}
+            className={`stage-card relative min-w-0 overflow-hidden rounded-2xl border border-white/10 [container-type:inline-size] ${compact ? "p-3" : `flex flex-col justify-center p-4 sm:p-5 ${isSingleChord ? "items-center text-center" : ""}`}`}
             key={group.id}
           >
-            <div className="flex w-full items-center justify-between text-xs text-neutral-500">
-              <span>{group.startIndex + 1}</span>
-              <span className={`${compact ? "text-base font-black text-[var(--accent)]" : "stage-bars rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent)]/15 px-5 py-3 text-2xl font-black text-[var(--accent)] sm:text-4xl"}`}>
+            <span className="absolute left-3 top-3 text-xs text-neutral-500 sm:left-5 sm:top-5">
+              {group.startIndex + 1}
+            </span>
+            <span className={`absolute right-3 top-3 z-10 ${compact ? "font-black text-[var(--accent)]" : "stage-bars rounded-2xl border border-[var(--accent)]/40 bg-[#161a0d] px-5 py-3 text-2xl font-black text-[var(--accent)] shadow-[0_0_24px_rgba(220,255,65,0.18)] sm:right-5 sm:top-5 sm:text-4xl"}`}>
                 {formatChordDuration(chord.durationBars).toUpperCase()}
-              </span>
-            </div>
+            </span>
             <p
-              className={`mt-4 min-w-0 whitespace-nowrap font-black leading-none tracking-[-0.05em] ${
+              className={`min-w-0 whitespace-nowrap font-black leading-none tracking-[-0.05em] ${
                 compact
                   ? "text-2xl"
                   : chord.renderedSymbol.length > 5
@@ -276,13 +283,6 @@ export function StageSession() {
           >
             Сыграть ещё раз
           </button>
-          <button
-            className="rounded-full border border-white/20 px-7 py-3 font-bold"
-            onClick={resetPlayback}
-            type="button"
-          >
-            Вернуться к теме A
-          </button>
           <RouteLink href="/">Редактор</RouteLink>
         </div>
       </main>
@@ -299,6 +299,9 @@ export function StageSession() {
           <h1 className="mt-2 text-3xl font-black sm:text-5xl">
             Тема {currentSection.label}
           </h1>
+          <p className="mt-2 text-sm font-semibold text-neutral-400 sm:text-base">
+            {formatSectionSettings(currentSection)}
+          </p>
         </div>
         <div className="text-right">
           <p
@@ -331,6 +334,9 @@ export function StageSession() {
             <h2 className="mb-5 mt-2 text-2xl font-black">
               Тема {nextSection.label}
             </h2>
+            <p className="-mt-3 mb-5 text-xs font-semibold text-neutral-400">
+              {formatSectionSettings(nextSection)}
+            </p>
             <SectionGrid compact section={nextSection} />
           </aside>
         ) : null}
