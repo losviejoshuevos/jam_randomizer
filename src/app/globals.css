@@ -37,6 +37,15 @@ body {
   color: #090a06;
 }
 
+.editor-shell select {
+  appearance: none;
+  padding-right: 2.75rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23aaa79b' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+  background-position: right 0.85rem center;
+  background-repeat: no-repeat;
+  background-size: 1rem;
+}
+
 .control-panel,
 .session-strip,
 .history-panel {
@@ -113,4 +122,233 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     0 0 32px rgba(227, 255, 99, 0.18);
+}
+
+.stage-primary-panel,
+.stage-secondary-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.stage-layout-steady {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.stage-chord-symbol {
+  font-size: clamp(2.5rem, min(36cqw, 54cqh), 15rem);
+}
+
+.stage-chord-symbol-long {
+  font-size: clamp(2rem, min(24cqw, 44cqh), 11rem);
+}
+
+.stage-chord-symbol-extra-long {
+  font-size: clamp(1.5rem, min(16cqw, 34cqh), 8rem);
+}
+
+.stage-grid-single .stage-chord-symbol:not(.stage-chord-symbol-long) {
+  font-size: clamp(3.5rem, min(64cqw, 88cqh), 26rem);
+}
+
+.stage-grid-single .stage-chord-symbol-long:not(.stage-chord-symbol-extra-long) {
+  font-size: clamp(3rem, min(42cqw, 75cqh), 20rem);
+}
+
+.stage-grid-single .stage-chord-symbol-extra-long {
+  font-size: clamp(2.5rem, min(28cqw, 60cqh), 15rem);
+}
+
+.stage-grid-pair .stage-chord-symbol:not(.stage-chord-symbol-long) {
+  font-size: clamp(3rem, min(48cqw, 68cqh), 20rem);
+}
+
+.stage-grid-pair .stage-chord-symbol-long:not(.stage-chord-symbol-extra-long) {
+  font-size: clamp(2.5rem, min(32cqw, 58cqh), 16rem);
+}
+
+.stage-grid-pair .stage-chord-symbol-extra-long {
+  font-size: clamp(2rem, min(22cqw, 48cqh), 12rem);
+}
+
+.stage-chord-symbol-compact {
+  font-size: clamp(1.25rem, min(23cqw, 34cqh), 5rem);
+}
+
+.stage-beat-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  transition:
+    transform 80ms ease,
+    background-color 80ms ease,
+    box-shadow 80ms ease;
+}
+
+.stage-beat-dot-active {
+  transform: scale(1.45);
+  background: var(--accent-cool);
+  box-shadow: 0 0 18px rgba(85, 231, 255, 0.75);
+}
+
+.stage-beat-dot-accent {
+  transform: scale(1.7);
+  background: var(--accent);
+  box-shadow: 0 0 24px rgba(227, 255, 99, 0.9);
+}
+
+.stage-card-beat-pulse {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  border-radius: inherit;
+  border: 3px solid var(--beat-color);
+  background: var(--beat-background);
+  box-shadow:
+    inset 0 0 36px var(--beat-shadow),
+    0 0 28px var(--beat-shadow);
+  animation: stage-card-beat-pulse 260ms ease-out both;
+}
+
+.stage-card-beat-pulse-accent {
+  --beat-color: rgba(227, 255, 99, 0.95);
+  --beat-background: rgba(227, 255, 99, 0.15);
+  --beat-shadow: rgba(227, 255, 99, 0.42);
+}
+
+.stage-card-beat-pulse-regular {
+  --beat-color: rgba(85, 231, 255, 0.72);
+  --beat-background: rgba(85, 231, 255, 0.07);
+  --beat-shadow: rgba(85, 231, 255, 0.25);
+}
+
+.metronome-volume {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.stage-next-panel {
+  animation: stage-next-panel-in 500ms ease-out both;
+}
+
+.stage-departing-panel {
+  animation: stage-previous-panel-out 700ms ease-out both;
+}
+
+@media (orientation: landscape) and (min-width: 700px) {
+  .stage-layout-warning {
+    grid-template-columns: minmax(0, 1fr) minmax(17rem, 30vw);
+  }
+
+  .stage-layout-handoff {
+    grid-template-columns: minmax(15rem, 27vw) minmax(0, 1fr);
+  }
+}
+
+@media (orientation: portrait), (max-width: 699px) {
+  .stage-layout-warning,
+  .stage-layout-handoff {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(7rem, 0.38fr);
+  }
+
+  .stage-layout-handoff .stage-primary-panel {
+    order: 1;
+  }
+
+  .stage-layout-handoff .stage-departing-panel {
+    order: 2;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 480px) {
+  .stage-shell .stage-bars {
+    top: 0.45rem !important;
+    right: 0.45rem !important;
+    padding: 0.35rem 0.65rem !important;
+    border-radius: 0.55rem !important;
+    font-size: 1.35rem !important;
+  }
+
+  .stage-shell .stage-chord-symbol {
+    max-height: 72cqh;
+  }
+
+  .stage-shell .stage-grid-many .stage-card {
+    padding: 0.2rem 0.45rem !important;
+    border-radius: 0.65rem;
+  }
+
+  .stage-shell .stage-grid-many .stage-chord-symbol {
+    margin-top: 0 !important;
+    font-size: clamp(0.9rem, min(18cqw, 44cqh), 2.35rem);
+    line-height: 0.92;
+  }
+
+  .stage-shell .stage-grid-many .stage-chord-symbol-long {
+    font-size: clamp(0.78rem, min(14cqw, 40cqh), 1.9rem);
+  }
+
+  .stage-shell .stage-grid-many .stage-chord-symbol-extra-long {
+    font-size: clamp(0.68rem, min(11cqw, 36cqh), 1.55rem);
+  }
+
+  .stage-shell .stage-grid-many .stage-chord-roman {
+    display: none;
+  }
+
+  .stage-shell .stage-grid-many .stage-bars {
+    top: 0.2rem !important;
+    right: 0.25rem !important;
+    padding: 0.12rem 0.38rem !important;
+    border-radius: 0.45rem !important;
+    font-size: 0.85rem !important;
+    line-height: 1.1;
+  }
+
+  .stage-shell .stage-grid-many .stage-card > span:first-of-type {
+    top: 0.25rem;
+    left: 0.35rem;
+    font-size: 0.48rem;
+  }
+}
+
+@keyframes stage-card-beat-pulse {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes stage-next-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(2rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes stage-previous-panel-out {
+  from {
+    opacity: 0.72;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0.48;
+    transform: translateX(-0.4rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-card-beat-pulse,
+  .stage-next-panel,
+  .stage-departing-panel {
+    animation: none;
+  }
 }

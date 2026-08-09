@@ -139,7 +139,13 @@ describe("generateSession", () => {
       settings: settings("advanced", "colorful", "minor"),
       styleProfile: funkStyleProfile,
     }).value;
-    const originalHarmony = original.sections.map((section) => section.chords);
+    const originalHarmony = original.sections.map((section) =>
+      section.chords.map(({ id, roman, renderedSymbol }) => ({
+        id,
+        roman,
+        renderedSymbol,
+      })),
+    );
     const nextSettings = {
       ...settings("advanced", "colorful", "minor"),
       bpm: 60,
@@ -154,9 +160,15 @@ describe("generateSession", () => {
     const retimed = retimeSession(original, nextSettings, funkStyleProfile);
 
     expect(retimed.id).toBe(original.id);
-    expect(retimed.sections.map((section) => section.chords)).toEqual(
-      originalHarmony,
-    );
+    expect(
+      retimed.sections.map((section) =>
+        section.chords.map(({ id, roman, renderedSymbol }) => ({
+          id,
+          roman,
+          renderedSymbol,
+        })),
+      ),
+    ).toEqual(originalHarmony);
     expect(retimed.bpm).toBe(60);
     expect(retimed.meter).toBe("3/4");
     expect(retimed.timeline.map((step) => step.durationSeconds)).toEqual([
@@ -167,6 +179,64 @@ describe("generateSession", () => {
     expect(retimed.timeline[0]?.transitionWarningSeconds).not.toBe(
       original.timeline[0]?.transitionWarningSeconds,
     );
+  });
+
+  it("promotes half-bar chords to whole bars when switching to 3/4", () => {
+    const original = generateSession({
+      seed: "normalize-halves-for-three-four",
+      settings: settings("advanced", "colorful", "minor"),
+      styleProfile: funkStyleProfile,
+    }).value;
+    const sectionA = original.sections[0]!;
+    const sourceChord = sectionA.chords[0]!;
+    const sessionWithHalves = {
+      ...original,
+      sections: original.sections.map((section) =>
+        section.label === "A"
+          ? {
+              ...section,
+              chords: [
+                {
+                  ...sourceChord,
+                  id: "manual-half-1",
+                  startBar: 0,
+                  durationBars: 0.5,
+                },
+                {
+                  ...sourceChord,
+                  id: "manual-half-2",
+                  startBar: 0.5,
+                  durationBars: 0.5,
+                },
+                ...section.chords.slice(1),
+              ],
+            }
+          : section,
+      ),
+    };
+    const retimed = retimeSession(
+      sessionWithHalves,
+      {
+        ...settings("advanced", "colorful", "minor"),
+        meter: "3/4",
+      },
+      funkStyleProfile,
+    );
+    const normalizedA = retimed.sections.find(({ label }) => label === "A")!;
+
+    expect(normalizedA.chords.some(({ durationBars }) => durationBars === 0.5)).toBe(
+      false,
+    );
+    expect(normalizedA.chords[0]).toMatchObject({
+      id: "manual-half-1",
+      startBar: 0,
+      durationBars: 1,
+    });
+    expect(normalizedA.chords[1]).toMatchObject({
+      id: "manual-half-2",
+      startBar: 1,
+      durationBars: 1,
+    });
   });
 
   it("stores independent harmony settings for A and B", () => {

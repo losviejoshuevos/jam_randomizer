@@ -12,6 +12,7 @@ export type Mode = "major" | "minor";
 export type Meter = "4/4" | "3/4";
 export type SectionLabel = "A" | "B";
 export type SectionRole = "theme" | "chorus" | "bridge";
+export type SectionDurationMode = "random" | "seconds" | "squares";
 
 export type PitchClass =
   | "C"
@@ -113,6 +114,10 @@ export interface JamSession {
 export interface SessionTimingSettings {
   sectionADurationSeconds: number;
   sectionBDurationSeconds: number;
+  sectionADurationMode?: SectionDurationMode;
+  sectionBDurationMode?: SectionDurationMode;
+  sectionASquares?: number;
+  sectionBSquares?: number;
   transitionWarningSeconds: number;
 }
 

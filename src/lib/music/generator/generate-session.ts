@@ -2,6 +2,7 @@ import type { GenerationSettings, JamSession, TimelineStep } from "../domain/typ
 import { deriveSeed } from "../random";
 import { resolveBpm } from "../tempo/resolve-bpm";
 import { calculateTransitionWarningSeconds } from "../tempo/transition-timing";
+import { resolveSectionDurationSeconds } from "../tempo/section-duration";
 import type { GenerateSessionRequest, GenerationResult } from "./contracts";
 import { generateSectionA } from "./generate-section-a";
 import { generateSectionB } from "./generate-section-b";
@@ -56,26 +57,42 @@ export function generateSession(
     bpm,
     settings.meter,
   );
+  const sectionADuration = resolveSectionDurationSeconds({
+    timing: settings.timing,
+    label: "A",
+    bars: sectionAResult.value.bars,
+    bpm,
+    meter: settings.meter,
+    seed,
+  });
+  const sectionBDuration = resolveSectionDurationSeconds({
+    timing: settings.timing,
+    label: "B",
+    bars: sectionBResult.value.bars,
+    bpm,
+    meter: settings.meter,
+    seed,
+  });
   const timeline = [
     timelineStep(
       seed,
       0,
       sectionAResult.value.id,
-      settings.timing.sectionADurationSeconds,
+      sectionADuration,
       sectionAWarning,
     ),
     timelineStep(
       seed,
       1,
       sectionBResult.value.id,
-      settings.timing.sectionBDurationSeconds,
+      sectionBDuration,
       sectionBWarning,
     ),
     timelineStep(
       seed,
       2,
       sectionAResult.value.id,
-      settings.timing.sectionADurationSeconds,
+      sectionADuration,
       sectionAWarning,
     ),
   ];
