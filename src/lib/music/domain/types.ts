@@ -10,8 +10,9 @@ export type Complexity = "easy" | "medium" | "advanced";
 export type HarmonicFreedom = "strict" | "colorful" | "adventurous";
 export type Mode = "major" | "minor";
 export type Meter = "4/4" | "3/4";
-export type SectionLabel = "A" | "B";
-export type SectionRole = "theme" | "chorus" | "bridge";
+export type SectionLabel = "A" | "B" | "C" | "D";
+export type GeneratorSectionLabel = "A" | "B";
+export type SectionRole = "theme" | "development" | "bridge" | "coda";
 export type SectionDurationMode = "random" | "seconds" | "squares";
 
 export type PitchClass =
@@ -118,6 +119,16 @@ export interface SessionTimingSettings {
   sectionBDurationMode?: SectionDurationMode;
   sectionASquares?: number;
   sectionBSquares?: number;
+  sectionDurations?: Partial<
+    Record<
+      SectionLabel,
+      {
+        mode: SectionDurationMode;
+        seconds: number;
+        squares: number;
+      }
+    >
+  >;
   transitionWarningSeconds: number;
 }
 

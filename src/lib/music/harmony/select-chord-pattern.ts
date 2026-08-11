@@ -1,10 +1,11 @@
 import type {
   ChordDefinition,
+  HarmonicPool,
   StyleProfile,
 } from "../domain/style-profile";
 import type {
   GenerationSettings,
-  SectionLabel,
+  GeneratorSectionLabel,
   WeightedValue,
 } from "../domain/types";
 import type { RandomSource } from "../random";
@@ -14,11 +15,17 @@ import { getAvailableChordDefinitions } from "./availability";
 export function selectHarmonicChordPattern(
   profile: StyleProfile,
   settings: GenerationSettings,
-  sectionLabel: SectionLabel,
+  sectionLabel: GeneratorSectionLabel,
   chordCount: number,
   random: RandomSource,
+  activePools?: ReadonlySet<HarmonicPool>,
 ): ChordDefinition[] | null {
-  const availableDefinitions = getAvailableChordDefinitions(profile, settings);
+  const availableDefinitions = getAvailableChordDefinitions(
+    profile,
+    settings,
+    undefined,
+    activePools,
+  );
   const patternChoices: WeightedValue<ChordDefinition[] | null>[] = [];
 
   for (const pattern of profile.harmonicChordPatterns ?? []) {

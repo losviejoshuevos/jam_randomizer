@@ -7,6 +7,7 @@ import type {
 } from "../domain/types";
 import { deriveSeed } from "../random";
 import { calculateTransitionWarningSeconds } from "../tempo/transition-timing";
+import { limitSessionHarmonicSpice } from "../harmony/limit-session-spice";
 import type {
   GenerationResult,
   RegenerateSessionSectionsRequest,
@@ -37,16 +38,15 @@ export function regenerateSessionSections(
   const { session, sectionLabels, sectionSettings, seed, styleProfile } = request;
   const targets = new Set<SectionLabel>(sectionLabels);
   const currentA = session.sections.find(({ label }) => label === "A");
-  const currentB = session.sections.find(({ label }) => label === "B");
 
-  if (!currentA || !currentB) {
-    throw new Error("Сессия должна содержать темы A и B.");
+  if (!currentA) {
+    throw new Error("Сессия должна содержать тему A.");
   }
 
   let attempts = 0;
   let usedFallback = false;
   let sectionA: JamSection = currentA;
-  let sectionB: JamSection = currentB;
+  const generatedByLabel = new Map<SectionLabel, JamSection>();
 
   if (targets.has("A")) {
     const result = generateSectionA({
@@ -55,33 +55,53 @@ export function regenerateSessionSections(
       styleProfile,
     });
     sectionA = result.value;
+    generatedByLabel.set("A", sectionA);
     attempts += result.attempts;
     usedFallback ||= result.usedFallback;
   }
 
-  if (targets.has("B")) {
+  for (const label of ["B", "C", "D"] as const) {
+    const current = session.sections.find((section) => section.label === label);
+    if (!targets.has(label)) {
+      if (current) generatedByLabel.set(label, current);
+      continue;
+    }
+
     const result = generateSectionB({
-      seed: deriveSeed(seed, "section:B"),
-      settings: generationSettings(session, sectionSettings.B),
+      seed: deriveSeed(seed, `section:${label}`),
+      settings: generationSettings(session, sectionSettings[label]),
       styleProfile,
       sectionA,
+      label,
+      avoidSections: [sectionA, ...generatedByLabel.values()],
     });
-    sectionB = result.value;
+    generatedByLabel.set(label, result.value);
     attempts += result.attempts;
     usedFallback ||= result.usedFallback;
   }
 
-  const replacements = new Map([
-    [currentA.id, sectionA],
-    [currentB.id, sectionB],
-  ]);
-  const sections = session.sections.map(
-    (section) => replacements.get(section.id) ?? section,
+  if (!generatedByLabel.has("A")) generatedByLabel.set("A", sectionA);
+  const generatedSections = (["A", "B", "C", "D"] as const)
+    .map(
+      (label) =>
+        generatedByLabel.get(label) ??
+        session.sections.find((section) => section.label === label),
+    )
+    .filter((section): section is JamSection => Boolean(section));
+  const sections = limitSessionHarmonicSpice(
+    generatedSections,
+    targets,
+    styleProfile,
+    seed,
   );
-  const sectionByOldId = new Map([
-    [currentA.id, sectionA],
-    [currentB.id, sectionB],
-  ]);
+  const sectionByOldId = new Map(
+    session.sections.flatMap((oldSection) => {
+      const replacement = sections.find(
+        ({ label }) => label === oldSection.label,
+      );
+      return replacement ? [[oldSection.id, replacement] as const] : [];
+    }),
+  );
   const timeline = session.timeline.map((step) => {
     const section = sectionByOldId.get(step.sectionId);
     if (!section) return step;

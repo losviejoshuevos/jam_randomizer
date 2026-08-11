@@ -2,7 +2,7 @@ import type { StyleProfile } from "../domain/style-profile";
 import type {
   Complexity,
   Meter,
-  SectionLabel,
+  GeneratorSectionLabel,
 } from "../domain/types";
 import { isComplexityAllowed } from "../harmony/availability";
 import type { RandomSource } from "../random";
@@ -10,7 +10,7 @@ import { weightedChoice } from "../random";
 
 export function generateHarmonicRhythm(
   profile: StyleProfile,
-  sectionLabel: SectionLabel,
+  sectionLabel: GeneratorSectionLabel,
   bars: number,
   meter: Meter,
   complexity: Complexity,

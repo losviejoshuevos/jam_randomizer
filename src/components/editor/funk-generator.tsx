@@ -20,9 +20,13 @@ import {
   generateSession,
   regenerateSessionSections,
   retimeSession,
+  sessionForm,
+  setSessionForm,
+  transposeSessionSections,
 } from "@/lib/music/generator";
 import { getAvailableChordDefinitions } from "@/lib/music/harmony/availability";
 import { renderRomanChord } from "@/lib/music/rendering/render-roman-chord";
+import { parseChordSymbol } from "@/lib/music/rendering/parse-chord-symbol";
 import { formatRomanChord } from "@/lib/music/rendering/format-roman-chord";
 import { formatChordDuration } from "@/lib/music/rendering/format-chord-duration";
 import { groupChordsForDisplay } from "@/lib/music/rendering/group-chords-for-display";
@@ -41,6 +45,7 @@ import {
   durationSecondsFromSquares,
   RANDOM_SQUARE_RANGES,
   sectionDurationMode,
+  sectionDurationSettings,
   squareDurationSeconds,
 } from "@/lib/music/tempo/section-duration";
 import { RouteLink } from "@/components/ui/route-link";
@@ -75,8 +80,28 @@ const DEFAULT_SETTINGS: GenerationSettings = {
     sectionBDurationMode: "random",
     sectionASquares: 16,
     sectionBSquares: 8,
+    sectionDurations: {
+      A: { mode: "random", seconds: 150, squares: 16 },
+      B: { mode: "random", seconds: 90, squares: 8 },
+      C: { mode: "random", seconds: 90, squares: 8 },
+      D: { mode: "random", seconds: 60, squares: 8 },
+    },
     transitionWarningSeconds: 10,
   },
+};
+
+const SECTION_LABELS: SectionLabel[] = ["A", "B", "C", "D"];
+const SECTION_DESCRIPTIONS: Record<SectionLabel, string> = {
+  A: "Основная тема",
+  B: "Развитие",
+  C: "Бридж",
+  D: "Кода",
+};
+const FORM_PRESETS: Record<string, SectionLabel[]> = {
+  ABA: ["A", "B", "A"],
+  ABAB: ["A", "B", "A", "B"],
+  ABCABC: ["A", "B", "C", "A", "B", "C"],
+  ABCD: ["A", "B", "C", "D"],
 };
 
 const FIELD_CLASS =
@@ -114,17 +139,18 @@ function harmonySettingsFromGeneration(
 
 function sectionSettingsFromSession(
   session: JamSession,
+  drafts?: Partial<Record<SectionLabel, SectionHarmonySettings>> | null,
 ): Record<SectionLabel, SectionHarmonySettings> {
   const fallback = harmonySettingsFromGeneration(settingsFromSession(session));
-
-  return {
-    A:
-      session.sections.find(({ label }) => label === "A")?.harmonySettings ??
-      fallback,
-    B:
-      session.sections.find(({ label }) => label === "B")?.harmonySettings ??
-      fallback,
-  };
+  return Object.fromEntries(
+    SECTION_LABELS.map((label) => [
+      label,
+      drafts?.[label] ??
+        session.sections.find((section) => section.label === label)
+          ?.harmonySettings ??
+        fallback,
+    ]),
+  ) as Record<SectionLabel, SectionHarmonySettings>;
 }
 
 function createCard(
@@ -153,6 +179,22 @@ function createCard(
 }
 
 function settingsFromSession(session: JamSession): GenerationSettings {
+  const sectionDurations = Object.fromEntries(
+    SECTION_LABELS.map((label) => {
+      const section = session.sections.find((item) => item.label === label);
+      const durationSeconds = session.timeline.find(
+        (step) => step.sectionId === section?.id,
+      )?.durationSeconds;
+      return [
+        label,
+        {
+          mode: "seconds" as const,
+          seconds: durationSeconds ?? (label === "A" ? 150 : label === "D" ? 60 : 90),
+          squares: RANDOM_SQUARE_RANGES[label].min,
+        },
+      ];
+    }),
+  ) as NonNullable<GenerationSettings["timing"]["sectionDurations"]>;
   return {
     styleId: session.styleId,
     key: session.key,
@@ -168,6 +210,7 @@ function settingsFromSession(session: JamSession): GenerationSettings {
       sectionBDurationMode: "seconds",
       sectionASquares: 16,
       sectionBSquares: 8,
+      sectionDurations,
       transitionWarningSeconds: session.transitionWarningSeconds,
     },
   };
@@ -228,6 +271,127 @@ function formatApproximateTime(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
+const JAZZ_CHORD_INPUT_SUGGESTIONS = [
+  ["", "мажорное трезвучие"],
+  ["m", "минорное трезвучие"],
+  ["min", "минор — альтернативная запись"],
+  ["-", "минор — джазовая запись"],
+  ["6", "мажорный секстаккорд"],
+  ["6/9", "секстаккорд с ноной"],
+  ["7", "доминантсептаккорд"],
+  ["maj7", "большой мажорный септаккорд"],
+  ["M7", "maj7 — альтернативная запись"],
+  ["Δ7", "maj7 — джазовая запись"],
+  ["m7", "минорный септаккорд"],
+  ["min7", "m7 — альтернативная запись"],
+  ["-7", "m7 — джазовая запись"],
+  ["9", "доминантовый нонаккорд"],
+  ["maj9", "большой мажорный нонаккорд"],
+  ["m9", "минорный нонаккорд"],
+  ["11", "ундецимаккорд"],
+  ["m11", "минорный ундецимаккорд"],
+  ["13", "терцдецимаккорд"],
+  ["m13", "минорный терцдецимаккорд"],
+  ["sus2", "аккорд с задержанной второй"],
+  ["sus4", "аккорд с задержанной четвёртой"],
+  ["add9", "трезвучие с добавленной ноной"],
+  ["7b9", "доминанта с пониженной ноной"],
+  ["7#9", "доминанта с повышенной ноной"],
+  ["13sus4", "терцдецимаккорд sus4"],
+  ["m7b5", "полууменьшённый септаккорд"],
+  ["ø7", "m7b5 — джазовая запись"],
+  ["dim", "уменьшённое трезвучие"],
+  ["dim7", "уменьшённый септаккорд"],
+  ["°7", "dim7 — джазовая запись"],
+  ["aug", "увеличенное трезвучие"],
+  ["+", "aug — джазовая запись"],
+] as const;
+
+function ChordCombobox({
+  chordId,
+  label,
+  mode,
+  options,
+  onCommit,
+}: {
+  chordId: string;
+  label: string;
+  mode: Mode;
+  options: { symbol: string; roman: string }[];
+  onCommit: (symbol: string) => boolean;
+}) {
+  const [draft, setDraft] = useState("");
+  const listId = `chord-options-${chordId}`;
+  const rootMatch = /^([A-Ga-g])([#b♯♭]?)/.exec(draft.trim());
+  const inputRoot = rootMatch
+    ? `${rootMatch[1].toUpperCase()}${rootMatch[2] ?? ""}`
+    : null;
+  const suggestions = Array.from(
+    new Map(
+      [
+        ...options.map(({ symbol, roman }) => ({
+          symbol,
+          description: formatRomanChord(roman, mode),
+        })),
+        ...(inputRoot
+          ? JAZZ_CHORD_INPUT_SUGGESTIONS.map(([suffix, description]) => ({
+              symbol: `${inputRoot}${suffix}`,
+              description,
+            }))
+          : []),
+      ].map((suggestion) => [suggestion.symbol, suggestion]),
+    ).values(),
+  );
+
+  function commit(): boolean {
+    const normalized = draft.trim();
+    if (normalized === "") return false;
+    if (onCommit(normalized)) {
+      setDraft("");
+      return true;
+    }
+    setDraft("");
+    return false;
+  }
+
+  return (
+    <div className="mt-1 flex min-w-0 gap-2">
+      <input
+        aria-label={label}
+        autoComplete="off"
+        className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/50 px-2 py-2 text-sm text-white outline-none transition focus:border-[var(--accent)]"
+        list={listId}
+        onChange={(event) => {
+          setDraft(event.target.value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          if (commit()) event.currentTarget.blur();
+        }}
+        placeholder="Новый аккорд"
+        value={draft}
+      />
+      <datalist id={listId}>
+        {suggestions.map(({ symbol, description }) => (
+          <option key={`${description}-${symbol}`} value={symbol}>
+            {description}
+          </option>
+        ))}
+      </datalist>
+      <button
+        aria-label={`Применить ${label.toLowerCase()}`}
+        className="shrink-0 rounded-lg border border-white/15 px-3 py-2 text-xs font-black text-white transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+        disabled={draft.trim() === ""}
+        onClick={commit}
+        type="button"
+      >
+        OK
+      </button>
+    </div>
+  );
+}
+
 function HarmonySectionCard({
   section,
   warningSeconds,
@@ -244,7 +408,7 @@ function HarmonySectionCard({
   section: JamSection;
   warningSeconds: number;
   settings: GenerationSettings;
-  onChordChange: (sectionId: string, chordId: string, roman: string) => void;
+  onChordChange: (sectionId: string, chordId: string, symbol: string) => boolean;
   onDurationChange: (
     sectionId: string,
     chordId: string,
@@ -312,30 +476,28 @@ function HarmonySectionCard({
           {chord.renderedSymbol}
         </p>
         <p className="mt-3 text-sm font-semibold tracking-[0.12em] text-neutral-400">
-          {formatRomanChord(chord.roman)}
+          {formatRomanChord(chord.roman, settings.mode)}
         </p>
-        <label className="mt-4 block text-left text-xs text-neutral-500">
-          Заменить аккорд
-          <select
-            aria-label={`Аккорд ${section.label}${index + 1}`}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/50 px-2 py-2 text-sm text-white"
-            onChange={(event) =>
-              onChordChange(section.id, chord.id, event.target.value)
+        <div className="mt-4 block text-left text-xs text-neutral-500">
+          <p>Заменить аккорд</p>
+          <ChordCombobox
+            chordId={chord.id}
+            key={`${chord.id}-${chord.renderedSymbol}`}
+            label={`Аккорд ${section.label}${index + 1}`}
+            mode={settings.mode}
+            onCommit={(symbol) =>
+              onChordChange(section.id, chord.id, symbol)
             }
-            value={chord.roman}
-          >
-            {availableOptions.map((definition) => (
-              <option key={definition.roman} value={definition.roman}>
-                {renderRomanChord(
-                  definition.roman,
-                  settings.key,
-                  settings.mode,
-                )}{" "}
-                · {formatRomanChord(definition.roman)}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={availableOptions.map((definition) => ({
+              symbol: renderRomanChord(
+                definition.roman,
+                settings.key,
+                settings.mode,
+              ),
+              roman: definition.roman,
+            }))}
+          />
+        </div>
         <div className="mt-3">
           <label className="block text-left text-xs text-neutral-500">
             Длительность
@@ -408,7 +570,7 @@ function HarmonySectionCard({
             Funk · Тема {section.label}
           </p>
           <p className="mt-2 text-sm text-neutral-500">
-            {section.label === "A" ? "Основной хук" : "Развитие основной темы"}
+            {SECTION_DESCRIPTIONS[section.label]}
             {" · "}следующая тема появится за {warningSeconds} сек.
           </p>
           <p className="mt-2 text-sm font-semibold text-neutral-300">
@@ -528,26 +690,35 @@ export function FunkGenerator() {
     useState(DEFAULT_SETTINGS);
   const [sectionSettings, setSectionSettings] = useState<
     Record<SectionLabel, SectionHarmonySettings>
-  >({
-    A: harmonySettingsFromGeneration(DEFAULT_SETTINGS),
-    B: harmonySettingsFromGeneration(DEFAULT_SETTINGS),
-  });
+  >(
+    Object.fromEntries(
+      SECTION_LABELS.map((label) => [
+        label,
+        harmonySettingsFromGeneration(DEFAULT_SETTINGS),
+      ]),
+    ) as Record<SectionLabel, SectionHarmonySettings>,
+  );
   const [focusedLabels, setFocusedLabels] = useState<SectionLabel[]>([]);
   const [activeSettingsLabel, setActiveSettingsLabel] =
     useState<SectionLabel>("A");
   const [manualBpm, setManualBpm] = useState(103);
   const [manualBpmInput, setManualBpmInput] = useState("103");
-  const [durationAInput, setDurationAInput] = useState("150");
-  const [durationBInput, setDurationBInput] = useState("90");
-  const [squaresAInput, setSquaresAInput] = useState("16");
-  const [squaresBInput, setSquaresBInput] = useState("8");
+  const [durationInputs, setDurationInputs] = useState<Record<SectionLabel, string>>({
+    A: "150", B: "90", C: "90", D: "60",
+  });
+  const [squaresInputs, setSquaresInputs] = useState<Record<SectionLabel, string>>({
+    A: "16", B: "8", C: "8", D: "8",
+  });
   const [recentSessions, setRecentSessions] = useState<JamSession[]>([]);
   const [card, setCard] = useState(() =>
     createCard(INITIAL_CARD_CODE, DEFAULT_SETTINGS, {
       A: harmonySettingsFromGeneration(DEFAULT_SETTINGS),
       B: harmonySettingsFromGeneration(DEFAULT_SETTINGS),
+      C: harmonySettingsFromGeneration(DEFAULT_SETTINGS),
+      D: harmonySettingsFromGeneration(DEFAULT_SETTINGS),
     }),
   );
+  const [formEditorMode, setFormEditorMode] = useState<"preset" | "custom">("preset");
   const [error, setError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
   const [persistenceMessage, setPersistenceMessage] = useState<string | null>(
@@ -557,22 +728,31 @@ export function FunkGenerator() {
   const activeThemeFocused =
     editingAllThemes || focusedLabels.includes(activeSettingsLabel);
   const activeHarmonySettings = sectionSettings[activeSettingsLabel];
+  const existingLabels = card.session.sections.map(({ label }) => label);
+  const currentForm = sessionForm(card.session);
+  const currentPreset = Object.entries(FORM_PRESETS).find(
+    ([, form]) => form.join("") === currentForm.join(""),
+  )?.[0];
+  const allExistingThemesShare = <K extends keyof SectionHarmonySettings>(key: K) =>
+    existingLabels.every(
+      (label) => sectionSettings[label][key] === activeHarmonySettings[key],
+    );
   const displayedKey =
-    editingAllThemes && sectionSettings.A.key !== sectionSettings.B.key
+    editingAllThemes && !allExistingThemesShare("key")
       ? ""
       : activeHarmonySettings.key;
   const displayedMode =
-    editingAllThemes && sectionSettings.A.mode !== sectionSettings.B.mode
+    editingAllThemes && !allExistingThemesShare("mode")
       ? ""
       : activeHarmonySettings.mode;
   const displayedComplexity =
     editingAllThemes &&
-    sectionSettings.A.complexity !== sectionSettings.B.complexity
+    !allExistingThemesShare("complexity")
       ? ""
       : activeHarmonySettings.complexity;
   const displayedFreedom =
     editingAllThemes &&
-    sectionSettings.A.harmonicFreedom !== sectionSettings.B.harmonicFreedom
+    !allExistingThemesShare("harmonicFreedom")
       ? ""
       : activeHarmonySettings.harmonicFreedom;
   const timingSettingsDirty =
@@ -580,6 +760,38 @@ export function FunkGenerator() {
     settings.meter !== appliedTimingSettings.meter ||
     JSON.stringify(settings.timing) !==
       JSON.stringify(appliedTimingSettings.timing);
+  const harmonyTargetLabels = focusedLabels.length
+    ? focusedLabels
+    : existingLabels;
+  const transpositionBlockedByMode = harmonyTargetLabels.some((label) => {
+    const section = card.session.sections.find((item) => item.label === label);
+    return section?.harmonySettings.mode !== sectionSettings[label].mode;
+  });
+  const transpositionDirty =
+    !transpositionBlockedByMode &&
+    harmonyTargetLabels.some((label) => {
+      const section = card.session.sections.find((item) => item.label === label);
+      return section?.harmonySettings.key !== sectionSettings[label].key;
+    });
+
+  function syncTimingInputs(nextSettings: GenerationSettings) {
+    setDurationInputs(
+      Object.fromEntries(
+        SECTION_LABELS.map((label) => [
+          label,
+          String(sectionDurationSettings(nextSettings.timing, label).seconds),
+        ]),
+      ) as Record<SectionLabel, string>,
+    );
+    setSquaresInputs(
+      Object.fromEntries(
+        SECTION_LABELS.map((label) => [
+          label,
+          String(sectionDurationSettings(nextSettings.timing, label).squares),
+        ]),
+      ) as Record<SectionLabel, string>,
+    );
+  }
 
   useEffect(() => {
     const restoreTimer = window.setTimeout(() => {
@@ -604,25 +816,16 @@ export function FunkGenerator() {
             settingsFromSession(loaded.value.currentSession),
         );
         setSectionSettings(
-          loaded.value.latestSectionSettings ??
-            sectionSettingsFromSession(loaded.value.currentSession),
+          sectionSettingsFromSession(
+            loaded.value.currentSession,
+            loaded.value.latestSectionSettings,
+          ),
         );
         if (typeof restoredSettings.bpm === "number") {
           setManualBpm(restoredSettings.bpm);
           setManualBpmInput(String(restoredSettings.bpm));
         }
-        setDurationAInput(
-          String(restoredSettings.timing.sectionADurationSeconds),
-        );
-        setDurationBInput(
-          String(restoredSettings.timing.sectionBDurationSeconds),
-        );
-        setSquaresAInput(
-          String(restoredSettings.timing.sectionASquares ?? 16),
-        );
-        setSquaresBInput(
-          String(restoredSettings.timing.sectionBSquares ?? 8),
-        );
+        syncTimingInputs(restoredSettings);
         setCard({
           code: loaded.value.currentSession.seed,
           settings: {
@@ -714,14 +917,7 @@ export function FunkGenerator() {
     setFocusedLabels([]);
     setManualBpm(session.bpm);
     setManualBpmInput(String(session.bpm));
-    setDurationAInput(
-      String(restoredSettings.timing.sectionADurationSeconds),
-    );
-    setDurationBInput(
-      String(restoredSettings.timing.sectionBDurationSeconds),
-    );
-    setSquaresAInput(String(restoredSettings.timing.sectionASquares ?? 16));
-    setSquaresBInput(String(restoredSettings.timing.sectionBSquares ?? 8));
+    syncTimingInputs(restoredSettings);
     setCard({
       code: session.seed,
       settings: { ...restoredSettings, bpm: session.bpm },
@@ -743,7 +939,7 @@ export function FunkGenerator() {
       const code = createCardCode();
       const targetLabels: SectionLabel[] = focusedLabels.length
         ? focusedLabels
-        : ["A", "B"];
+        : card.session.sections.map(({ label }) => label);
       const generationSession =
         settings.bpm === "random"
           ? {
@@ -804,6 +1000,21 @@ export function FunkGenerator() {
     }
   }
 
+  function applyTransposition() {
+    const nextSession = transposeSessionSections(
+      card.session,
+      harmonyTargetLabels,
+      Object.fromEntries(
+        harmonyTargetLabels.map((label) => [label, sectionSettings[label].key]),
+      ),
+    );
+    commitCardMutation(
+      nextSession,
+      `Транспонированы темы: ${harmonyTargetLabels.join(" + ")}.`,
+    );
+    setError(null);
+  }
+
   function applyTimingSettings() {
     const nextSession = retimeSession(card.session, settings, funkStyleProfile);
     const nextSettings: ResolvedGenerationSettings = {
@@ -822,23 +1033,23 @@ export function FunkGenerator() {
     );
   }
 
-  function replaceChord(sectionId: string, chordId: string, roman: string) {
+  function replaceChord(sectionId: string, chordId: string, symbol: string): boolean {
     const targetSection = card.session.sections.find(
       (section) => section.id === sectionId,
     );
-    if (!targetSection) return;
+    if (!targetSection) return false;
     const draftSettings = sectionSettings[targetSection.label];
-    const chordEditingSettings: ResolvedGenerationSettings = {
-      ...card.settings,
-      ...targetSection.harmonySettings,
-      complexity: draftSettings.complexity,
-      harmonicFreedom: draftSettings.harmonicFreedom,
-    };
-    const definition = getAvailableChordDefinitions(
-      funkStyleProfile,
-      chordEditingSettings,
-    ).find((item) => item.roman === roman);
-    if (!definition) return;
+    const parsed = parseChordSymbol(
+      symbol,
+      targetSection.harmonySettings.key,
+      targetSection.harmonySettings.mode,
+    );
+    if (!parsed) {
+      setError(
+        "Не удалось распознать аккорд. Используйте обозначение вроде C#m7b5, Bb13sus4 или C/E.",
+      );
+      return false;
+    }
     const chordIndex = targetSection?.chords.findIndex(
       (chord) => chord.id === chordId,
     );
@@ -846,6 +1057,10 @@ export function FunkGenerator() {
       chordIndex === undefined || chordIndex < 0
         ? undefined
         : targetSection?.chords[chordIndex];
+    if (targetChord?.roman === parsed.roman) {
+      setError(null);
+      return true;
+    }
     const previousChord =
       chordIndex === undefined || chordIndex < 1
         ? undefined
@@ -856,12 +1071,12 @@ export function FunkGenerator() {
         : targetSection?.chords[chordIndex + 1];
     const duplicatesHalfBarPartner =
       targetChord?.durationBars === 0.5 &&
-      ((previousChord?.durationBars === 0.5 && previousChord.roman === roman) ||
-        (nextHalfChord?.durationBars === 0.5 && nextHalfChord.roman === roman));
+      ((previousChord?.durationBars === 0.5 && previousChord.roman === parsed.roman) ||
+        (nextHalfChord?.durationBars === 0.5 && nextHalfChord.roman === parsed.roman));
 
     if (duplicatesHalfBarPartner) {
       setError("В двух половинах одного такта должны быть разные аккорды.");
-      return;
+      return false;
     }
 
     const nextChord = (chord: JamChord): JamChord =>
@@ -869,13 +1084,9 @@ export function FunkGenerator() {
         ? {
             ...chord,
             source: "manual",
-            roman: definition.roman,
-            renderedSymbol: renderRomanChord(
-              definition.roman,
-              targetSection.harmonySettings.key,
-              targetSection.harmonySettings.mode,
-            ),
-            harmonicFunction: definition.harmonicFunction,
+            roman: parsed.roman,
+            renderedSymbol: parsed.renderedSymbol,
+            harmonicFunction: parsed.harmonicFunction,
           }
         : chord;
     const nextSession: JamSession = {
@@ -896,6 +1107,7 @@ export function FunkGenerator() {
     };
     commitCardMutation(nextSession, "Аккорд изменён.");
     setError(null);
+    return true;
   }
 
   function changeChordDuration(
@@ -1149,55 +1361,60 @@ export function FunkGenerator() {
     setSettings((current) => ({ ...current, bpm: nextBpm }));
   }
 
-  function commitDuration(part: "A" | "B", rawValue: string) {
-    const fallback =
-      part === "A"
-        ? settings.timing.sectionADurationSeconds
-        : settings.timing.sectionBDurationSeconds;
+  function updateSectionTiming(
+    part: SectionLabel,
+    patch: Partial<ReturnType<typeof sectionDurationSettings>>,
+  ) {
+    setSettings((current) => {
+      const nextValue = {
+        ...sectionDurationSettings(current.timing, part),
+        ...patch,
+      };
+      const timing = {
+        ...current.timing,
+        sectionDurations: {
+          ...current.timing.sectionDurations,
+          [part]: nextValue,
+        },
+      };
+      if (part === "A") {
+        timing.sectionADurationSeconds = nextValue.seconds;
+        timing.sectionADurationMode = nextValue.mode;
+        timing.sectionASquares = nextValue.squares;
+      } else if (part === "B") {
+        timing.sectionBDurationSeconds = nextValue.seconds;
+        timing.sectionBDurationMode = nextValue.mode;
+        timing.sectionBSquares = nextValue.squares;
+      }
+      return { ...current, timing };
+    });
+  }
+
+  function commitDuration(part: SectionLabel, rawValue: string) {
+    const fallback = sectionDurationSettings(settings.timing, part).seconds;
     const parsed = Number(rawValue);
     const duration = Number.isFinite(parsed)
       ? Math.min(MAX_SECTION_SECONDS, Math.max(MIN_SECTION_SECONDS, parsed))
       : fallback;
-    if (part === "A") setDurationAInput(String(duration));
-    else setDurationBInput(String(duration));
-    setSettings((current) => ({
-      ...current,
-      timing: {
-        ...current.timing,
-        [part === "A"
-          ? "sectionADurationSeconds"
-          : "sectionBDurationSeconds"]: duration,
-      },
-    }));
+    setDurationInputs((current) => ({ ...current, [part]: String(duration) }));
+    updateSectionTiming(part, { seconds: duration });
   }
 
-  function updateDurationInput(part: "A" | "B", rawValue: string) {
+  function updateDurationInput(part: SectionLabel, rawValue: string) {
     if (!/^\d{0,4}$/.test(rawValue)) return;
-    if (part === "A") setDurationAInput(rawValue);
-    else setDurationBInput(rawValue);
+    setDurationInputs((current) => ({ ...current, [part]: rawValue }));
     const parsed = Number(rawValue);
     if (
       rawValue !== "" &&
       parsed >= MIN_SECTION_SECONDS &&
       parsed <= MAX_SECTION_SECONDS
     ) {
-      setSettings((current) => ({
-        ...current,
-        timing: {
-          ...current.timing,
-          [part === "A"
-            ? "sectionADurationSeconds"
-            : "sectionBDurationSeconds"]: parsed,
-        },
-      }));
+      updateSectionTiming(part, { seconds: parsed });
     }
   }
 
-  function commitSquares(part: "A" | "B", rawValue: string) {
-    const fallback =
-      (part === "A"
-        ? settings.timing.sectionASquares
-        : settings.timing.sectionBSquares) ?? RANDOM_SQUARE_RANGES[part].min;
+  function commitSquares(part: SectionLabel, rawValue: string) {
+    const fallback = sectionDurationSettings(settings.timing, part).squares;
     const parsed = Number(rawValue);
     const squares = Number.isFinite(parsed)
       ? Math.min(
@@ -1205,47 +1422,78 @@ export function FunkGenerator() {
           Math.max(MIN_SECTION_SQUARES, Math.round(parsed)),
         )
       : fallback;
-    if (part === "A") setSquaresAInput(String(squares));
-    else setSquaresBInput(String(squares));
-    setSettings((current) => ({
-      ...current,
-      timing: {
-        ...current.timing,
-        [part === "A" ? "sectionASquares" : "sectionBSquares"]: squares,
-      },
-    }));
+    setSquaresInputs((current) => ({ ...current, [part]: String(squares) }));
+    updateSectionTiming(part, { squares });
   }
 
-  function updateSquaresInput(part: "A" | "B", rawValue: string) {
+  function updateSquaresInput(part: SectionLabel, rawValue: string) {
     if (!/^\d{0,2}$/.test(rawValue)) return;
-    if (part === "A") setSquaresAInput(rawValue);
-    else setSquaresBInput(rawValue);
+    setSquaresInputs((current) => ({ ...current, [part]: rawValue }));
     const parsed = Number(rawValue);
     if (
       rawValue !== "" &&
       parsed >= MIN_SECTION_SQUARES &&
       parsed <= MAX_SECTION_SQUARES
     ) {
-      setSettings((current) => ({
-        ...current,
-        timing: {
-          ...current.timing,
-          [part === "A" ? "sectionASquares" : "sectionBSquares"]: parsed,
-        },
-      }));
+      updateSectionTiming(part, { squares: parsed });
     }
   }
 
-  function setDurationMode(part: "A" | "B", mode: SectionDurationMode) {
-    setSettings((current) => ({
-      ...current,
-      timing: {
-        ...current.timing,
-        [part === "A"
-          ? "sectionADurationMode"
-          : "sectionBDurationMode"]: mode,
-      },
-    }));
+  function setDurationMode(part: SectionLabel, mode: SectionDurationMode) {
+    updateSectionTiming(part, { mode });
+  }
+
+  function applySessionForm(nextForm: SectionLabel[], custom = false) {
+    try {
+      const code = createCardCode();
+      const existing = new Set(card.session.sections.map(({ label }) => label));
+      const missing = Array.from(new Set(nextForm)).filter(
+        (label) => !existing.has(label),
+      );
+      const generated = missing.length
+        ? regenerateSessionSections({
+            session: card.session,
+            sectionLabels: missing,
+            sectionSettings,
+            seed: code,
+            styleProfile: funkStyleProfile,
+          })
+        : { value: card.session, usedFallback: false };
+      const formed = setSessionForm(generated.value, nextForm);
+      const retimed = retimeSession(
+        formed,
+        { ...settings, bpm: card.session.bpm },
+        funkStyleProfile,
+      );
+      setFormEditorMode(custom ? "custom" : "preset");
+      setFocusedLabels((current) =>
+        current.filter((label) => nextForm.includes(label)),
+      );
+      if (!nextForm.includes(activeSettingsLabel)) {
+        setActiveSettingsLabel(nextForm[0] ?? "A");
+      }
+      commitCardMutation(retimed, `Форма ${nextForm.join("")} применена.`);
+      setError(null);
+    } catch (formError) {
+      setError(
+        formError instanceof Error
+          ? formError.message
+          : "Не удалось изменить форму сессии.",
+      );
+    }
+  }
+
+  function appendFormLabel(label: SectionLabel) {
+    applySessionForm([...sessionForm(card.session), label], true);
+  }
+
+  function removeFormStep(index: number) {
+    const next = sessionForm(card.session).filter((_, stepIndex) => stepIndex !== index);
+    if (!next.includes("A")) {
+      setError("В форме должна остаться хотя бы одна тема A.");
+      return;
+    }
+    applySessionForm(next, true);
   }
 
   function toggleFocus(label: SectionLabel) {
@@ -1269,10 +1517,14 @@ export function FunkGenerator() {
     if (!activeThemeFocused) return;
     setSectionSettings((current) => {
       const next = editingAllThemes
-        ? {
-            A: { ...current.A, ...patch },
-            B: { ...current.B, ...patch },
-          }
+        ? Object.fromEntries(
+            SECTION_LABELS.map((label) => [
+              label,
+              existingLabels.includes(label)
+                ? { ...current[label], ...patch }
+                : current[label],
+            ]),
+          ) as Record<SectionLabel, SectionHarmonySettings>
         : {
             ...current,
             [activeSettingsLabel]: {
@@ -1295,15 +1547,15 @@ export function FunkGenerator() {
   }
 
   return (
-    <main className="editor-shell mx-auto min-h-screen max-w-[1680px] px-5 py-8 sm:px-8 lg:py-12">
+    <main className="editor-shell mx-auto min-h-screen max-w-[1680px] px-5 py-8 !pb-28 sm:px-8 sm:!pb-28 lg:py-12">
       <header className="mb-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-4xl font-black tracking-tight sm:text-6xl">
             Jam Randomizer
           </h1>
           <p className="mt-3 max-w-2xl text-[var(--muted)]">
-            Создавайте Funk-сессию A → B → A и сохраняйте код понравившейся
-            или проблемной карточки.
+            Соберите Funk-сессию из тем A–D, настройте её форму и сохраните
+            код понравившегося варианта.
           </p>
         </div>
         <RouteLink href="/stage">На сцену</RouteLink>
@@ -1313,12 +1565,12 @@ export function FunkGenerator() {
         <section className="control-panel rounded-3xl border border-white/10 p-5 sm:p-6">
           <h2 className="text-lg font-bold">Настройки тем</h2>
           <p className="mt-2 text-xs leading-5 text-neutral-500">
-            По умолчанию изменения применяются к обеим темам. Выберите тему
-            на её карточке, чтобы настроить её отдельно.
+            По умолчанию изменения применяются ко всем созданным темам.
+            Выберите карточки, чтобы настраивать и генерировать только их.
           </p>
           {focusedLabels.length ? (
             <div className="mt-4 grid grid-cols-2 gap-2" role="tablist">
-                {(["A", "B"] as const).map((label) => {
+                {existingLabels.map((label) => {
                   const focused = focusedLabels.includes(label);
                   return (
                     <button
@@ -1426,9 +1678,22 @@ export function FunkGenerator() {
             </p>
           ) : editingAllThemes ? (
             <p className="mt-3 text-xs text-neutral-500">
-              Изменение любого поля применится одновременно к A и B.
+              Изменение любого поля применится одновременно ко всем созданным темам.
             </p>
           ) : null}
+
+          <button
+            className="mt-4 w-full rounded-xl border border-[var(--accent-cool)]/50 px-4 py-2.5 text-sm font-bold text-[var(--accent-cool)] transition hover:bg-[var(--accent-cool)]/10 disabled:cursor-not-allowed disabled:border-white/10 disabled:text-neutral-600 disabled:hover:bg-transparent"
+            disabled={!transpositionDirty}
+            onClick={applyTransposition}
+            type="button"
+          >
+            {transpositionBlockedByMode
+              ? "Смена лада — через новую гармонию"
+              : focusedLabels.length
+                ? `Транспонировать: ${focusedLabels.join(" + ")}`
+                : "Транспонировать все темы"}
+          </button>
 
           <div className="my-6 border-t border-white/10" />
           <h2 className="text-lg font-bold">Настройки сессии</h2>
@@ -1436,6 +1701,61 @@ export function FunkGenerator() {
             Темп, размер и длительность меняются без замены аккордов.
           </p>
           <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-1">
+            <fieldset className="col-span-2 lg:col-span-1">
+              <legend className="text-sm text-[var(--muted)]">Форма сессии</legend>
+              <select
+                aria-label="Форма сессии"
+                className={FIELD_CLASS}
+                onChange={(event) => {
+                  const choice = event.target.value;
+                  if (choice === "custom") {
+                    setFormEditorMode("custom");
+                    return;
+                  }
+                  applySessionForm(FORM_PRESETS[choice] ?? FORM_PRESETS.ABA);
+                }}
+                value={formEditorMode === "custom" || !currentPreset ? "custom" : currentPreset}
+              >
+                {Object.keys(FORM_PRESETS).map((preset) => (
+                  <option key={preset} value={preset}>{preset}</option>
+                ))}
+                <option value="custom">Своя форма</option>
+              </select>
+              {formEditorMode === "custom" || !currentPreset ? (
+                <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                  <div className="flex flex-wrap gap-2">
+                    {currentForm.map((label, index) => (
+                      <button
+                        className="rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-3 py-2 text-sm font-black text-[var(--accent)]"
+                        key={`${label}-${index}`}
+                        onClick={() => removeFormStep(index)}
+                        title={`Убрать тему ${label} из формы`}
+                        type="button"
+                      >
+                        {label} ×
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-xs text-neutral-500">Добавить следующий шаг:</p>
+                  <div className="mt-2 grid grid-cols-4 gap-2">
+                    {SECTION_LABELS.map((label) => (
+                      <button
+                        className="rounded-lg border border-white/15 py-2 text-sm font-bold hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                        key={label}
+                        onClick={() => appendFormLabel(label)}
+                        type="button"
+                      >
+                        + {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <p className="mt-2 text-xs text-neutral-500">
+                Текущая форма: {currentForm.join(" → ")}
+              </p>
+            </fieldset>
+
             <label className="text-sm text-[var(--muted)]">
               Размер
               <select
@@ -1508,7 +1828,7 @@ export function FunkGenerator() {
                 Длительность частей
               </legend>
               <div className="mt-2 space-y-3">
-                {(["A", "B"] as const).map((part) => {
+                {existingLabels.map((part) => {
                   const mode = sectionDurationMode(settings.timing, part);
                   const section = card.session.sections.find(
                     ({ label }) => label === part,
@@ -1527,11 +1847,10 @@ export function FunkGenerator() {
                         ),
                     ),
                   );
-                  const squares =
-                    (part === "A"
-                      ? settings.timing.sectionASquares
-                      : settings.timing.sectionBSquares) ??
-                    RANDOM_SQUARE_RANGES[part].min;
+                  const squares = sectionDurationSettings(
+                    settings.timing,
+                    part,
+                  ).squares;
                   const approximateSeconds = durationSecondsFromSquares(
                     squares,
                     section?.bars ?? 4,
@@ -1547,10 +1866,10 @@ export function FunkGenerator() {
                       key={part}
                     >
                       <p className="text-xs font-bold text-white">Тема {part}</p>
-                      <div className="mt-2 grid grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] gap-2">
+                      <div className="mt-2 grid grid-cols-1 gap-2">
                         <select
                           aria-label={`Режим длительности ${part}`}
-                          className={`${FIELD_CLASS} mt-0`}
+                          className={`${FIELD_CLASS} mt-0 min-w-0`}
                           onChange={(event) =>
                             setDurationMode(
                               part,
@@ -1565,7 +1884,7 @@ export function FunkGenerator() {
                         </select>
                         <input
                           aria-label={`Значение длительности ${part}`}
-                          className={`${FIELD_CLASS} mt-0 disabled:cursor-not-allowed disabled:opacity-45`}
+                          className={`${FIELD_CLASS} mt-0 min-w-0 disabled:cursor-not-allowed disabled:opacity-45`}
                           disabled={mode === "random"}
                           max={
                             mode === "squares"
@@ -1592,12 +1911,8 @@ export function FunkGenerator() {
                             mode === "random"
                               ? `${currentRandomSquares} кв.`
                               : mode === "squares"
-                                ? part === "A"
-                                  ? squaresAInput
-                                  : squaresBInput
-                                : part === "A"
-                                  ? durationAInput
-                                  : durationBInput
+                                ? squaresInputs[part]
+                                : durationInputs[part]
                           }
                         />
                       </div>
@@ -1624,16 +1939,6 @@ export function FunkGenerator() {
             Применить BPM, размер и длительности
           </button>
 
-          <button
-            className="mt-3 w-full rounded-xl bg-[var(--accent)] px-5 py-3 font-bold text-black transition hover:brightness-90 active:scale-[0.99]"
-            onClick={generateNewHarmony}
-            type="button"
-          >
-            {focusedLabels.length
-              ? `Новая гармония: ${focusedLabels.join(" + ")}`
-              : "Новая гармония: все темы"}
-          </button>
-
           {error ? (
             <p className="mt-4 rounded-xl bg-red-950/60 p-3 text-sm text-red-200">
               {error}
@@ -1647,6 +1952,18 @@ export function FunkGenerator() {
           {persistenceMessage ? (
             <p className="mt-2 text-xs text-[var(--muted)]">{persistenceMessage}</p>
           ) : null}
+
+          <div className="fixed bottom-3 left-1/2 z-50 w-[min(calc(100%-1.5rem),32rem)] -translate-x-1/2 rounded-2xl border border-white/15 bg-[rgba(20,20,17,0.94)] p-3 shadow-[0_18px_70px_rgba(0,0,0,0.65)] backdrop-blur-xl sm:bottom-4 sm:p-4">
+            <button
+              className="w-full rounded-xl bg-[var(--accent)] px-5 py-3 font-bold text-black transition hover:brightness-90 active:scale-[0.99]"
+              onClick={generateNewHarmony}
+              type="button"
+            >
+              {focusedLabels.length
+                ? `Новая гармония: ${focusedLabels.join(" + ")}`
+                : "Новая гармония: все темы"}
+            </button>
+          </div>
         </section>
 
         <div className="space-y-5">
@@ -1654,7 +1971,7 @@ export function FunkGenerator() {
             <h2 className="text-2xl font-black sm:text-3xl">Funk-сессия</h2>
             <div className="text-sm text-[var(--muted)]">
               {card.settings.meter} ·{" "}
-              <span data-testid="card-bpm">{card.settings.bpm} BPM</span> · A → B → A
+              <span data-testid="card-bpm">{card.settings.bpm} BPM</span> · {currentForm.join(" → ")}
             </div>
           </div>
 

@@ -1,475 +1,232 @@
 import type {
   ChordDefinition,
   HarmonicChordPattern,
+  HarmonicPool,
   HarmonicFunctionPattern,
   StyleProfile,
 } from "@/lib/music/domain/style-profile";
-import type { Complexity } from "@/lib/music/domain/types";
+import type {
+  Complexity,
+  HarmonicFunction,
+  Mode,
+} from "@/lib/music/domain/types";
 
 const ALL_COMPLEXITIES: Complexity[] = ["easy", "medium", "advanced"];
 
-const chordVocabulary: ChordDefinition[] = [
-  // Easy means triads only. These definitions are intentionally unavailable
-  // at higher levels so that complexity changes the complete card, including
-  // its first chord.
-  {
-    roman: "I",
-    harmonicFunction: "tonic",
-    weight: 8,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["vamp"],
-  },
-  {
-    roman: "i",
-    harmonicFunction: "tonic",
-    weight: 8,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["vamp"],
-  },
-  {
-    roman: "iii",
-    harmonicFunction: "tonic",
-    weight: 1,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["tonic-substitute", "rare-color"],
-  },
-  {
-    roman: "bIII",
-    harmonicFunction: "tonic",
-    weight: 1,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["tonic-substitute", "rare-color"],
-  },
-  {
-    roman: "IV",
-    harmonicFunction: "predominant",
-    weight: 5,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "iv",
-    harmonicFunction: "predominant",
-    weight: 5,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "V",
-    harmonicFunction: "dominant",
-    weight: 4,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "bVII",
-    harmonicFunction: "color",
-    weight: 5,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "parallel-mode" },
-  },
-  {
-    roman: "bVII",
-    harmonicFunction: "color",
-    weight: 5,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "bVI",
-    harmonicFunction: "color",
-    weight: 3,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "bVI",
-    harmonicFunction: "color",
-    weight: 2,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "parallel-mode" },
-    tags: ["borrowed-triad"],
-  },
-  {
-    roman: "bII",
-    harmonicFunction: "color",
-    weight: 2,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "parallel-mode" },
-    tags: ["chromatic-side-slip"],
-  },
-  {
-    roman: "II",
-    harmonicFunction: "color",
-    weight: 1,
-    minimumComplexity: "easy",
-    allowedComplexities: ["easy"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "neighboring-key", circleOfFifthsOffset: 1 },
-    tags: ["chromatic-side-slip"],
-  },
+type RootQuality = "major" | "minor" | "diminished";
 
-  // Medium uses seventh chords and restrained ninths.
-  {
-    roman: "Imaj7",
-    harmonicFunction: "tonic",
-    weight: 7,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["vamp"],
-  },
-  {
-    roman: "I9",
-    harmonicFunction: "tonic",
-    weight: 7,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "parallel-mode" },
-    tags: ["vamp", "funk-dominant"],
-  },
-  {
-    roman: "I7",
-    harmonicFunction: "tonic",
-    weight: 5,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "parallel-mode" },
-    tags: ["vamp", "funk-dominant"],
-  },
-  {
-    roman: "i7",
-    harmonicFunction: "tonic",
-    weight: 8,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["vamp"],
-  },
-  {
-    roman: "iii7",
-    harmonicFunction: "tonic",
-    weight: 1,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["tonic-substitute", "rare-color"],
-  },
-  {
-    roman: "bIIImaj7",
-    harmonicFunction: "tonic",
-    weight: 1,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["tonic-substitute", "rare-color"],
-  },
-  {
-    roman: "IVmaj7",
-    harmonicFunction: "predominant",
-    weight: 5,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "IV9",
-    harmonicFunction: "color",
-    weight: 6,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "parallel-mode" },
-    tags: ["funk-dominant"],
-  },
-  {
-    roman: "II9",
-    harmonicFunction: "color",
-    weight: 3,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "neighboring-key", circleOfFifthsOffset: 1 },
-    tags: ["chromatic-side-slip"],
-  },
-  {
-    roman: "bII9",
-    harmonicFunction: "color",
-    weight: 4,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "parallel-mode" },
-    tags: ["chromatic-side-slip"],
-  },
-  {
-    roman: "iv7",
-    harmonicFunction: "predominant",
-    weight: 5,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "V7",
-    harmonicFunction: "dominant",
-    weight: 5,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "bVII7",
-    harmonicFunction: "color",
-    weight: 4,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "parallel-mode" },
-  },
-  {
-    roman: "bVImaj7",
-    harmonicFunction: "color",
-    weight: 3,
-    minimumComplexity: "medium",
-    allowedComplexities: ["medium"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-  },
+interface FunkRoot {
+  romanRoot: string;
+  quality: RootQuality;
+  harmonicFunction: HarmonicFunction;
+  harmonicPool: HarmonicPool;
+  weight: number;
+  tags?: string[];
+}
 
-  // Advanced deliberately uses upper structures or altered dominants.
-  {
-    roman: "Imaj9",
-    harmonicFunction: "tonic",
-    weight: 7,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["vamp"],
+const ROOTS_BY_MODE: Record<Mode, FunkRoot[]> = {
+  major: [
+    // C major example: C Am F Dm G Em.
+    { romanRoot: "I", quality: "major", harmonicFunction: "tonic", harmonicPool: "core", weight: 18, tags: ["vamp"] },
+    { romanRoot: "vi", quality: "minor", harmonicFunction: "tonic", harmonicPool: "core", weight: 1 },
+    { romanRoot: "IV", quality: "major", harmonicFunction: "predominant", harmonicPool: "core", weight: 14 },
+    { romanRoot: "ii", quality: "minor", harmonicFunction: "predominant", harmonicPool: "core", weight: 1 },
+    { romanRoot: "V", quality: "major", harmonicFunction: "dominant", harmonicPool: "core", weight: 12 },
+    { romanRoot: "iii", quality: "minor", harmonicFunction: "tonic", harmonicPool: "core", weight: 0.25, tags: ["tonic-substitute", "rare-color"] },
+    // Colorful: Bb Gm D Bm Bdim.
+    { romanRoot: "bVII", quality: "major", harmonicFunction: "color", harmonicPool: "nearby", weight: 2 },
+    { romanRoot: "v", quality: "minor", harmonicFunction: "color", harmonicPool: "nearby", weight: 2 },
+    { romanRoot: "II", quality: "major", harmonicFunction: "dominant", harmonicPool: "nearby", weight: 4, tags: ["must-resolve"] },
+    { romanRoot: "vii", quality: "minor", harmonicFunction: "color", harmonicPool: "nearby", weight: 2 },
+    { romanRoot: "vii", quality: "diminished", harmonicFunction: "dominant", harmonicPool: "nearby", weight: 2, tags: ["must-resolve"] },
+    // Adventurous: modal mixture first, then the sharp side of the circle.
+    { romanRoot: "bIII", quality: "major", harmonicFunction: "color", harmonicPool: "chromatic-near", weight: 4 },
+    { romanRoot: "i", quality: "minor", harmonicFunction: "tonic", harmonicPool: "chromatic-near", weight: 2 },
+    { romanRoot: "bVI", quality: "major", harmonicFunction: "color", harmonicPool: "chromatic-near", weight: 4 },
+    { romanRoot: "iv", quality: "minor", harmonicFunction: "predominant", harmonicPool: "chromatic-near", weight: 5 },
+    { romanRoot: "#iv", quality: "minor", harmonicFunction: "color", harmonicPool: "chromatic-medium", weight: 2 },
+    { romanRoot: "VI", quality: "major", harmonicFunction: "color", harmonicPool: "chromatic-medium", weight: 2 },
+    { romanRoot: "III", quality: "major", harmonicFunction: "dominant", harmonicPool: "chromatic-medium", weight: 3 },
+    { romanRoot: "#i", quality: "minor", harmonicFunction: "color", harmonicPool: "chromatic-medium", weight: 1 },
+    { romanRoot: "bII", quality: "major", harmonicFunction: "dominant", harmonicPool: "nearby", weight: 5 },
+    { romanRoot: "bii", quality: "minor", harmonicFunction: "color", harmonicPool: "chromatic-far", weight: 1 },
+    { romanRoot: "biii", quality: "minor", harmonicFunction: "color", harmonicPool: "chromatic-far", weight: 1 },
+    { romanRoot: "#IV", quality: "major", harmonicFunction: "color", harmonicPool: "chromatic-far", weight: 1 },
+    { romanRoot: "bvi", quality: "minor", harmonicFunction: "color", harmonicPool: "chromatic-far", weight: 1 },
+    { romanRoot: "bvii", quality: "minor", harmonicFunction: "color", harmonicPool: "chromatic-far", weight: 1 },
+  ],
+  minor: [
+    // A minor uses the same pitch collection as its relative C major,
+    // but functions are heard from A: Am C F Dm G Em.
+    { romanRoot: "i", quality: "minor", harmonicFunction: "tonic", harmonicPool: "core", weight: 18, tags: ["vamp"] },
+    { romanRoot: "bIII", quality: "major", harmonicFunction: "tonic", harmonicPool: "core", weight: 1 },
+    { romanRoot: "bVI", quality: "major", harmonicFunction: "predominant", harmonicPool: "core", weight: 1 },
+    { romanRoot: "iv", quality: "minor", harmonicFunction: "predominant", harmonicPool: "core", weight: 14 },
+    { romanRoot: "bVII", quality: "major", harmonicFunction: "color", harmonicPool: "core", weight: 1 },
+    { romanRoot: "v", quality: "minor", harmonicFunction: "dominant", harmonicPool: "core", weight: 10 },
+    // The same colorful pitch roots as for relative C major: Bb Gm D Bm Bdim.
+    { romanRoot: "bII", quality: "major", harmonicFunction: "dominant", harmonicPool: "nearby", weight: 5 },
+    { romanRoot: "bvii", quality: "minor", harmonicFunction: "color", harmonicPool: "nearby", weight: 2 },
+    { romanRoot: "IV", quality: "major", harmonicFunction: "predominant", harmonicPool: "nearby", weight: 4 },
+    { romanRoot: "ii", quality: "minor", harmonicFunction: "predominant", harmonicPool: "nearby", weight: 2 },
+    { romanRoot: "ii", quality: "diminished", harmonicFunction: "predominant", harmonicPool: "nearby", weight: 2 },
+    { romanRoot: "bV", quality: "major", harmonicFunction: "color", harmonicPool: "chromatic-near", weight: 3 },
+    { romanRoot: "biii", quality: "minor", harmonicFunction: "color", harmonicPool: "chromatic-near", weight: 3 },
+    { romanRoot: "bI", quality: "major", harmonicFunction: "color", harmonicPool: "chromatic-near", weight: 3 },
+    { romanRoot: "bvi", quality: "minor", harmonicFunction: "predominant", harmonicPool: "chromatic-near", weight: 4 },
+    { romanRoot: "vi", quality: "minor", harmonicFunction: "color", harmonicPool: "chromatic-medium", weight: 2 },
+    { romanRoot: "I", quality: "major", harmonicFunction: "tonic", harmonicPool: "chromatic-medium", weight: 2 },
+    { romanRoot: "V", quality: "major", harmonicFunction: "dominant", harmonicPool: "chromatic-medium", weight: 4 },
+    { romanRoot: "iii", quality: "minor", harmonicFunction: "color", harmonicPool: "chromatic-medium", weight: 1 },
+    { romanRoot: "III", quality: "major", harmonicFunction: "color", harmonicPool: "chromatic-far", weight: 1 },
+    { romanRoot: "bv", quality: "minor", harmonicFunction: "passing", harmonicPool: "chromatic-near", weight: 2 },
+    { romanRoot: "VI", quality: "major", harmonicFunction: "color", harmonicPool: "chromatic-far", weight: 1 },
+    { romanRoot: "bi", quality: "minor", harmonicFunction: "color", harmonicPool: "chromatic-far", weight: 1 },
+    { romanRoot: "bii", quality: "minor", harmonicFunction: "color", harmonicPool: "chromatic-far", weight: 1 },
+    { romanRoot: "II", quality: "major", harmonicFunction: "dominant", harmonicPool: "chromatic-far", weight: 1 },
+  ],
+};
+
+interface ExtensionChoice {
+  suffix: string;
+  weight: number;
+}
+
+function extensions(...choices: [suffix: string, weight: number][]): ExtensionChoice[] {
+  return choices.map(([suffix, weight]) => ({ suffix, weight }));
+}
+
+interface CuratedRootExtensions {
+  medium: ExtensionChoice[];
+  advanced: ExtensionChoice[];
+}
+
+const CURATED_EXTENSIONS: Record<
+  Mode,
+  Record<string, CuratedRootExtensions>
+> = {
+  major: {
+    I: { medium: extensions(["maj7", 6], ["9", 7], ["7", 4]), advanced: extensions(["maj9", 6], ["13", 7], ["13sus4", 4], ["6/9", 3]) },
+    vi: { medium: extensions(["7", 5], ["9", 3]), advanced: extensions(["11", 3]) },
+    IV: { medium: extensions(["maj7", 5], ["9", 4]), advanced: extensions(["maj9", 5], ["13", 4]) },
+    ii: { medium: extensions(["7", 5], ["9", 3]), advanced: extensions(["11", 4]) },
+    V: { medium: extensions(["7", 6], ["9", 4]), advanced: extensions(["13", 6], ["7#9", 3]) },
+    iii: { medium: extensions(["7", 3]), advanced: extensions(["9", 2]) },
+    bVII: { medium: extensions(["7", 5], ["9", 3]), advanced: extensions(["13", 4]) },
+    v: { medium: extensions(["7", 3]), advanced: extensions(["9", 2]) },
+    II: { medium: extensions(["9", 5], ["7", 3]), advanced: extensions(["13", 4]) },
+    vii: { medium: extensions(["7", 3]), advanced: extensions(["9", 2]) },
+    "vii:diminished": { medium: extensions(["dim", 4]), advanced: extensions(["dim7", 3]) },
+    bIII: { medium: extensions(["maj7", 3]), advanced: extensions(["maj9", 2]) },
+    i: { medium: extensions(["7", 3]), advanced: extensions(["9", 2]) },
+    bVI: { medium: extensions(["maj7", 3]), advanced: extensions(["13", 2]) },
+    iv: { medium: extensions(["7", 4]), advanced: extensions(["11", 3]) },
+    "#iv": { medium: extensions(["7", 2]), advanced: extensions(["9", 1]) },
+    VI: { medium: extensions(["7", 2]), advanced: extensions(["9", 1]) },
+    III: { medium: extensions(["7", 3]), advanced: extensions(["9", 2]) },
+    "#i": { medium: extensions(["7", 2]), advanced: extensions(["9", 1]) },
+    bII: { medium: extensions(["9", 3]), advanced: extensions(["13", 2]) },
   },
-  {
-    roman: "I13",
-    harmonicFunction: "tonic",
-    weight: 6,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "parallel-mode" },
-    tags: ["vamp", "funk-dominant"],
+  minor: {
+    i: { medium: extensions(["7", 7], ["9", 4]), advanced: extensions(["11", 7], ["13", 3], ["6/9", 2]) },
+    bIII: { medium: extensions(["maj7", 4], ["9", 4]), advanced: extensions(["maj9", 3], ["13", 2]) },
+    bVI: { medium: extensions(["maj7", 4]), advanced: extensions(["maj9", 3]) },
+    iv: { medium: extensions(["7", 5], ["9", 3]), advanced: extensions(["11", 5]) },
+    bVII: { medium: extensions(["7", 4], ["9", 3]), advanced: extensions(["13", 3]) },
+    v: { medium: extensions(["7", 4]), advanced: extensions(["9", 3], ["11", 2]) },
+    bII: { medium: extensions(["9", 4]), advanced: extensions(["13", 3], ["7#9", 1]) },
+    bvii: { medium: extensions(["7", 3]), advanced: extensions(["9", 2]) },
+    IV: { medium: extensions(["9", 5]), advanced: extensions(["13", 5]) },
+    ii: { medium: extensions(["7", 3]), advanced: extensions(["9", 2]) },
+    "ii:diminished": { medium: extensions(["dim", 4]), advanced: extensions(["dim7", 3]) },
+    bV: { medium: extensions(["7", 2]), advanced: extensions(["9", 1]) },
+    biii: { medium: extensions(["7", 2]), advanced: extensions(["9", 1]) },
+    bI: { medium: extensions(["maj7", 2]), advanced: extensions(["maj9", 1]) },
+    bvi: { medium: extensions(["7", 3]), advanced: extensions(["11", 2]) },
+    vi: { medium: extensions(["7", 2]), advanced: extensions(["9", 1]) },
+    I: { medium: extensions(["7", 2]), advanced: extensions(["13", 1]) },
+    V: { medium: extensions(["7", 4]), advanced: extensions(["13", 3], ["7b9", 2]) },
+    iii: { medium: extensions(["7", 2]), advanced: extensions(["9", 1]) },
   },
-  {
-    roman: "I13sus4",
-    harmonicFunction: "tonic",
-    weight: 4,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "parallel-mode" },
-    tags: ["vamp", "mode-ambiguous"],
-  },
-  {
-    roman: "i7",
-    harmonicFunction: "tonic",
-    weight: 3,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["vamp"],
-  },
-  {
-    roman: "i9",
-    harmonicFunction: "tonic",
-    weight: 6,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["vamp"],
-  },
-  {
-    roman: "i11",
-    harmonicFunction: "tonic",
-    weight: 8,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["vamp"],
-  },
-  {
-    roman: "i13",
-    harmonicFunction: "tonic",
-    weight: 4,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "parallel-mode" },
-    tags: ["vamp", "dorian-color"],
-  },
-  {
-    roman: "iii9",
-    harmonicFunction: "tonic",
-    weight: 1,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["tonic-substitute", "rare-color"],
-  },
-  {
-    roman: "bIIImaj9",
-    harmonicFunction: "tonic",
-    weight: 1,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-    tags: ["tonic-substitute", "rare-color"],
-  },
-  {
-    roman: "IVmaj9",
-    harmonicFunction: "predominant",
-    weight: 5,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "IV13",
-    harmonicFunction: "color",
-    weight: 6,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "parallel-mode" },
-    tags: ["funk-dominant"],
-  },
-  {
-    roman: "II13",
-    harmonicFunction: "color",
-    weight: 3,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "neighboring-key", circleOfFifthsOffset: 1 },
-    tags: ["chromatic-side-slip"],
-  },
-  {
-    roman: "bII13",
-    harmonicFunction: "color",
-    weight: 4,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "parallel-mode" },
-    tags: ["chromatic-side-slip"],
-  },
-  {
-    roman: "iv11",
-    harmonicFunction: "predominant",
-    weight: 5,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "V7#9",
-    harmonicFunction: "dominant",
-    weight: 5,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "V7b9",
-    harmonicFunction: "dominant",
-    weight: 5,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "bVII13",
-    harmonicFunction: "color",
-    weight: 4,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "parallel-mode" },
-  },
-  {
-    roman: "bVImaj9",
-    harmonicFunction: "color",
-    weight: 3,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["minor"],
-    tonalSource: { kind: "diatonic" },
-  },
-  {
-    roman: "bVI13",
-    harmonicFunction: "color",
-    weight: 2,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major"],
-    tonalSource: { kind: "parallel-mode" },
-    tags: ["dominant-planing"],
-  },
-  {
-    roman: "V13/V",
-    harmonicFunction: "dominant",
-    weight: 2,
-    minimumComplexity: "advanced",
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major", "minor"],
-    tonalSource: { kind: "neighboring-key", circleOfFifthsOffset: 1 },
-    tags: ["must-resolve"],
-  },
-];
+};
+
+function fallbackExtensions(
+  root: FunkRoot,
+  complexity: "medium" | "advanced",
+): ExtensionChoice[] {
+  if (root.quality === "diminished") {
+    return extensions([complexity === "medium" ? "dim" : "dim7", 1]);
+  }
+  if (root.quality === "minor") {
+    return extensions([complexity === "medium" ? "7" : "9", 1]);
+  }
+  if (root.harmonicFunction === "dominant") {
+    return extensions([complexity === "medium" ? "7" : "13", 1]);
+  }
+  return extensions([complexity === "medium" ? "maj7" : "maj9", 1]);
+}
+
+function curatedExtensions(
+  root: FunkRoot,
+  mode: Mode,
+  complexity: "medium" | "advanced",
+): ExtensionChoice[] {
+  const key = root.quality === "diminished"
+    ? `${root.romanRoot}:diminished`
+    : root.romanRoot;
+  return CURATED_EXTENSIONS[mode][key]?.[complexity] ??
+    fallbackExtensions(root, complexity);
+}
+
+function definition(
+  root: FunkRoot,
+  mode: Mode,
+  extension: ExtensionChoice,
+  minimumComplexity: Complexity,
+  allowedComplexities: Complexity[],
+): ChordDefinition {
+  return {
+    roman: `${root.romanRoot}${extension.suffix}`,
+    harmonicFunction: root.harmonicFunction,
+    weight: root.weight * extension.weight,
+    minimumComplexity,
+    allowedComplexities,
+    allowedModes: [mode],
+    harmonicPool: root.harmonicPool,
+    tags: root.tags,
+  };
+}
+
+const chordVocabulary: ChordDefinition[] = (
+  Object.entries(ROOTS_BY_MODE) as [Mode, FunkRoot[]][]
+).flatMap(([mode, roots]) =>
+  roots.flatMap((root) => [
+    definition(
+      root,
+      mode,
+      { suffix: root.quality === "diminished" ? "dim" : "", weight: 1 },
+      "easy",
+      ["easy"],
+    ),
+    ...curatedExtensions(root, mode, "medium").map((extension) =>
+      definition(root, mode, extension, "medium", ["medium", "advanced"]),
+    ),
+    ...curatedExtensions(root, mode, "advanced").map((extension) =>
+      definition(root, mode, extension, "advanced", ["advanced"]),
+    ),
+  ]),
+);
+
+chordVocabulary.push({
+  roman: "V13/V",
+  harmonicFunction: "dominant",
+  weight: 6,
+  minimumComplexity: "advanced",
+  allowedComplexities: ["advanced"],
+  allowedModes: ["major", "minor"],
+  harmonicPool: "nearby",
+  tags: ["must-resolve"],
+});
 
 function funkPattern(
   id: string,
@@ -486,30 +243,30 @@ function funkPattern(
 }
 
 const harmonicFunctionPatterns: HarmonicFunctionPattern[] = [
-  funkPattern("one-chord-vamp", ["tonic"], 12),
-  funkPattern("two-chord-tonic-color", ["tonic", "color"], 7),
-  funkPattern("two-chord-tonic-subdominant", ["tonic", "predominant"], 6),
-  funkPattern("two-chord-tonic-dominant", ["tonic", "dominant"], 2),
-  funkPattern("four-chord-color-vamp", ["tonic", "color", "tonic", "color"], 8),
+  funkPattern("one-chord-vamp", ["tonic"], 24),
+  funkPattern("two-chord-tonic-color", ["tonic", "color"], 1),
+  funkPattern("two-chord-tonic-subdominant", ["tonic", "predominant"], 14),
+  funkPattern("two-chord-tonic-dominant", ["tonic", "dominant"], 10),
+  funkPattern("four-chord-color-vamp", ["tonic", "color", "tonic", "color"], 1),
   funkPattern(
     "four-chord-subdominant-vamp",
     ["tonic", "predominant", "tonic", "predominant"],
-    7,
+    12,
   ),
   funkPattern(
     "four-chord-open-ending",
     ["tonic", "tonic", "color", "predominant"],
-    5,
+    2,
   ),
   funkPattern(
     "four-chord-functional-turnaround",
     ["tonic", "predominant", "dominant", "tonic"],
-    2,
+    8,
   ),
   funkPattern(
     "eight-chord-color-vamp",
     ["tonic", "tonic", "color", "tonic", "tonic", "color", "tonic", "color"],
-    8,
+    2,
   ),
   funkPattern(
     "eight-chord-subdominant-vamp",
@@ -523,7 +280,7 @@ const harmonicFunctionPatterns: HarmonicFunctionPattern[] = [
       "tonic",
       "predominant",
     ],
-    7,
+    10,
   ),
   funkPattern(
     "eight-chord-funk-turnaround",
@@ -537,7 +294,7 @@ const harmonicFunctionPatterns: HarmonicFunctionPattern[] = [
       "tonic",
       "color",
     ],
-    3,
+    6,
   ),
 ];
 
@@ -599,6 +356,54 @@ const harmonicChordPatterns: HarmonicChordPattern[] = [
     allowedModes: ["minor"],
   },
   {
+    id: "major-same-root-two-chord-medium",
+    romanChords: ["I7", "I9"],
+    weight: 12,
+    allowedSections: ["A"],
+    allowedComplexities: ["medium"],
+    allowedModes: ["major"],
+  },
+  {
+    id: "major-same-root-two-chord-advanced",
+    romanChords: ["I9", "I13"],
+    weight: 12,
+    allowedSections: ["A"],
+    allowedComplexities: ["advanced"],
+    allowedModes: ["major"],
+  },
+  {
+    id: "minor-same-root-two-chord-medium",
+    romanChords: ["i7", "i9"],
+    weight: 12,
+    allowedSections: ["A"],
+    allowedComplexities: ["medium"],
+    allowedModes: ["minor"],
+  },
+  {
+    id: "minor-same-root-two-chord-advanced",
+    romanChords: ["i9", "i11"],
+    weight: 12,
+    allowedSections: ["A"],
+    allowedComplexities: ["advanced"],
+    allowedModes: ["minor"],
+  },
+  {
+    id: "minor-tonic-flat-three-nine-vamp",
+    romanChords: ["i7", "bIII9"],
+    weight: 10,
+    allowedSections: ["A"],
+    allowedComplexities: ["medium", "advanced"],
+    allowedModes: ["minor"],
+  },
+  {
+    id: "minor-tonic-tritone-sub-vamp",
+    romanChords: ["i9", "bII9"],
+    weight: 12,
+    allowedSections: ["A"],
+    allowedComplexities: ["medium", "advanced"],
+    allowedModes: ["minor"],
+  },
+  {
     id: "dorian-two-chord-medium",
     romanChords: ["i7", "IV9"],
     weight: 7,
@@ -631,33 +436,9 @@ const harmonicChordPatterns: HarmonicChordPattern[] = [
     allowedModes: ["minor"],
   },
   {
-    id: "chromatic-side-slip-medium",
-    romanChords: ["I9", "II9", "bII9", "I9"],
-    weight: 6,
-    allowedSections: ["A"],
-    allowedComplexities: ["medium"],
-    allowedModes: ["major"],
-  },
-  {
-    id: "chromatic-side-slip-advanced",
-    romanChords: ["I13", "II13", "bII13", "I13"],
-    weight: 6,
-    allowedSections: ["A"],
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major"],
-  },
-  {
     id: "same-root-color-motion",
     romanChords: ["I13", "I13sus4", "I13", "I13sus4"],
     weight: 5,
-    allowedSections: ["A"],
-    allowedComplexities: ["advanced"],
-    allowedModes: ["major"],
-  },
-  {
-    id: "dominant-planing",
-    romanChords: ["I13", "IV13", "bVII13", "bVI13"],
-    weight: 3,
     allowedSections: ["A"],
     allowedComplexities: ["advanced"],
     allowedModes: ["major"],
@@ -667,7 +448,7 @@ const harmonicChordPatterns: HarmonicChordPattern[] = [
 export const funkStyleProfile = {
   id: "funk",
   name: "Funk",
-  bpmRange: { min: 88, max: 118 },
+  bpmRange: { min: 98, max: 118 },
   allowedMeters: [
     { value: "4/4", weight: 9 },
     { value: "3/4", weight: 1 },
@@ -706,7 +487,8 @@ export const funkStyleProfile = {
   },
   harmonicFunctionPatterns,
   harmonicChordPatterns,
-  genericHarmonyWeight: 12,
+  genericHarmonyWeight: 5,
+  maximumGeneratedNonCoreChords: 1,
   harmonicRhythms: [
     {
       value: {
@@ -714,9 +496,9 @@ export const funkStyleProfile = {
         durationsBars: [4],
         minimumComplexity: "easy",
         allowedMeters: ["4/4", "3/4"],
-        allowedSections: ["A"],
+        allowedSections: ["A", "B"],
       },
-      weight: 9,
+      weight: 18,
     },
     {
       value: {
@@ -726,7 +508,7 @@ export const funkStyleProfile = {
         allowedMeters: ["4/4", "3/4"],
         allowedSections: ["A", "B"],
       },
-      weight: 6,
+      weight: 8,
     },
     {
       value: {
@@ -736,7 +518,7 @@ export const funkStyleProfile = {
         allowedMeters: ["4/4", "3/4"],
         allowedSections: ["A", "B"],
       },
-      weight: 2,
+      weight: 0.5,
     },
     {
       value: {
@@ -744,9 +526,9 @@ export const funkStyleProfile = {
         durationsBars: [1, 0.5, 0.5, 2],
         minimumComplexity: "medium",
         allowedMeters: ["4/4"],
-        allowedSections: ["A", "B"],
+        allowedSections: ["B"],
       },
-      weight: 0.35,
+      weight: 0.5,
     },
     {
       value: {
@@ -754,9 +536,9 @@ export const funkStyleProfile = {
         durationsBars: [0.5, 0.5, 1, 2],
         minimumComplexity: "medium",
         allowedMeters: ["4/4"],
-        allowedSections: ["A", "B"],
+        allowedSections: ["B"],
       },
-      weight: 0.35,
+      weight: 0.5,
     },
   ],
   sectionRules: {
@@ -790,23 +572,40 @@ export const funkStyleProfile = {
         { value: "predominant", weight: 6 },
         { value: "color", weight: 4 },
         { value: "tonic", weight: 2 },
+        { value: "dominant", weight: 2 },
       ],
       allowedEndFunctions: [
         { value: "dominant", weight: 7 },
         { value: "tonic", weight: 3 },
+        { value: "predominant", weight: 2 },
+        { value: "color", weight: 1 },
       ],
       tension: "high",
-      minimumDistinctFunctions: 2,
+      minimumDistinctFunctions: 1,
       requireLoopability: false,
     },
   },
-  tonalSourceWeights: {
-    strict: { diatonic: 1, parallelMode: 0, neighboringKey: 0 },
-    colorful: { diatonic: 0.85, parallelMode: 0.15, neighboringKey: 0 },
+  harmonicPoolWeights: {
+    strict: {
+      core: 1,
+      nearby: 0,
+      "chromatic-near": 0,
+      "chromatic-medium": 0,
+      "chromatic-far": 0,
+    },
+    colorful: {
+      core: 1,
+      nearby: 0.16,
+      "chromatic-near": 0,
+      "chromatic-medium": 0,
+      "chromatic-far": 0,
+    },
     adventurous: {
-      diatonic: 0.65,
-      parallelMode: 0.25,
-      neighboringKey: 0.1,
+      core: 1,
+      nearby: 0.14,
+      "chromatic-near": 0.1,
+      "chromatic-medium": 0.06,
+      "chromatic-far": 0.02,
     },
   },
   validationRules: {

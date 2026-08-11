@@ -12,17 +12,45 @@ export const RANDOM_SQUARE_RANGES: Record<
 > = {
   A: { min: 16, max: 24 },
   B: { min: 8, max: 16 },
+  C: { min: 8, max: 16 },
+  D: { min: 8, max: 16 },
 };
+
+export function sectionDurationSettings(
+  timing: SessionTimingSettings,
+  label: SectionLabel,
+): { mode: SectionDurationMode; seconds: number; squares: number } {
+  const configured = timing.sectionDurations?.[label];
+  if (configured) return configured;
+
+  if (label === "A") {
+    return {
+      mode: timing.sectionADurationMode ?? "seconds",
+      seconds: timing.sectionADurationSeconds,
+      squares: timing.sectionASquares ?? RANDOM_SQUARE_RANGES.A.min,
+    };
+  }
+
+  if (label === "B") {
+    return {
+      mode: timing.sectionBDurationMode ?? "seconds",
+      seconds: timing.sectionBDurationSeconds,
+      squares: timing.sectionBSquares ?? RANDOM_SQUARE_RANGES.B.min,
+    };
+  }
+
+  return {
+    mode: "random",
+    seconds: label === "C" ? 90 : 60,
+    squares: RANDOM_SQUARE_RANGES[label].min,
+  };
+}
 
 export function sectionDurationMode(
   timing: SessionTimingSettings,
   label: SectionLabel,
 ): SectionDurationMode {
-  return (
-    (label === "A"
-      ? timing.sectionADurationMode
-      : timing.sectionBDurationMode) ?? "seconds"
-  );
+  return sectionDurationSettings(timing, label).mode;
 }
 
 export function squareDurationSeconds(
@@ -61,16 +89,13 @@ export function resolveSectionDurationSeconds({
   meter: Meter;
   seed: string;
 }): number {
-  const seconds =
-    label === "A"
-      ? timing.sectionADurationSeconds
-      : timing.sectionBDurationSeconds;
+  const durationSettings = sectionDurationSettings(timing, label);
+  const seconds = durationSettings.seconds;
   const mode = sectionDurationMode(timing, label);
 
   if (mode === "seconds") return seconds;
 
-  let squares =
-    label === "A" ? timing.sectionASquares : timing.sectionBSquares;
+  let squares = durationSettings.squares;
 
   if (mode === "random") {
     const range = RANDOM_SQUARE_RANGES[label];

@@ -66,6 +66,12 @@ function migrateVersionOne(state: PersistedJamState): PersistedJamState {
               complexity: currentSession.complexity,
               harmonicFreedom: currentSession.harmonicFreedom,
             },
+          C:
+            currentSession.sections.find(({ label }) => label === "C")
+              ?.harmonySettings,
+          D:
+            currentSession.sections.find(({ label }) => label === "D")
+              ?.harmonySettings,
         }
       : null,
     appliedTimingSettings: state.latestSettings,

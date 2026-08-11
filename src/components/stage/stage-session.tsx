@@ -118,12 +118,15 @@ function SectionGrid({
                     </span>
                   </div>
                   <p
-                    className={`stage-chord-symbol mt-2 min-w-0 whitespace-nowrap font-black leading-none tracking-[-0.05em] ${compact ? "stage-chord-symbol-compact" : ""} ${chord.renderedSymbol.length > 4 ? "stage-chord-symbol-long" : ""} ${chord.renderedSymbol.length > 7 ? "stage-chord-symbol-extra-long" : ""}`}
+                    className={`stage-chord-symbol mt-2 min-w-0 whitespace-nowrap font-black leading-none tracking-[-0.05em] ${compact ? "stage-chord-symbol-compact" : ""} ${chord.renderedSymbol.length > 4 ? "stage-chord-symbol-long" : ""} ${chord.renderedSymbol.length > 6 ? "stage-chord-symbol-extra-long" : ""}`}
                   >
                     {chord.renderedSymbol}
                   </p>
                   <p className={`stage-chord-roman ${compact ? "text-[0.6rem]" : "text-sm sm:text-lg"} mt-2 font-semibold tracking-[0.12em] text-neutral-400`}>
-                    {formatRomanChord(chord.roman)}
+                    {formatRomanChord(
+                      chord.roman,
+                      section.harmonySettings.mode,
+                    )}
                   </p>
                 </div>
               ))}
@@ -154,12 +157,15 @@ function SectionGrid({
                 {formatStageDuration(chord.durationBars)}
             </span>
             <p
-              className={`stage-chord-symbol min-w-0 whitespace-nowrap font-black leading-none tracking-[-0.05em] ${compact ? "stage-chord-symbol-compact" : ""} ${chord.renderedSymbol.length > 4 ? "stage-chord-symbol-long" : ""} ${chord.renderedSymbol.length > 7 ? "stage-chord-symbol-extra-long" : ""}`}
+              className={`stage-chord-symbol min-w-0 whitespace-nowrap font-black leading-none tracking-[-0.05em] ${compact ? "stage-chord-symbol-compact" : ""} ${chord.renderedSymbol.length > 4 ? "stage-chord-symbol-long" : ""} ${chord.renderedSymbol.length > 6 ? "stage-chord-symbol-extra-long" : ""}`}
             >
               {chord.renderedSymbol}
             </p>
             <p className={`stage-chord-roman ${compact ? "text-[0.6rem]" : "text-sm sm:text-lg"} mt-2 font-semibold tracking-[0.12em] text-neutral-400`}>
-              {formatRomanChord(chord.roman)}
+              {formatRomanChord(
+                chord.roman,
+                section.harmonySettings.mode,
+              )}
             </p>
           </div>
         );
@@ -178,6 +184,29 @@ function initialPlayback(session: JamSession): PlaybackState {
   };
 }
 
+function nextPlaybackState(
+  current: PlaybackState,
+  session: JamSession,
+): PlaybackState {
+  const nextStep = session.timeline[current.stepIndex + 1];
+  if (!nextStep) {
+    return {
+      ...current,
+      remainingSeconds: 0,
+      running: false,
+      completed: true,
+    };
+  }
+
+  return {
+    stepIndex: current.stepIndex + 1,
+    remainingSeconds: nextStep.durationSeconds,
+    running: current.running,
+    completed: false,
+    started: current.started,
+  };
+}
+
 export function StageSession() {
   const [session, setSession] = useState<JamSession | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -190,6 +219,7 @@ export function StageSession() {
     chordId: null,
   });
   const [metronomeVolume, setMetronomeVolume] = useState(0.7);
+  const [transitionQueued, setTransitionQueued] = useState(false);
   const [playback, setPlayback] = useState<PlaybackState>({
     stepIndex: 0,
     remainingSeconds: 0,
@@ -205,6 +235,12 @@ export function StageSession() {
   const activeMeterRef = useRef<Meter>("4/4");
   const accentAudioRef = useRef<HTMLAudioElement | null>(null);
   const regularAudioRef = useRef<HTMLAudioElement | null>(null);
+  const transitionQueuedRef = useRef(false);
+  const playbackRef = useRef(playback);
+
+  useEffect(() => {
+    playbackRef.current = playback;
+  }, [playback]);
 
   const triggerBeat = useCallback((beatIndex: number) => {
     const audio =
@@ -285,10 +321,32 @@ export function StageSession() {
 
     const scheduleNextBeat = () => {
       timeoutId = window.setTimeout(() => {
-        beatIndexRef.current = nextBeatIndex(
+        const nextBeat = nextBeatIndex(
           beatIndexRef.current,
           session.meter,
         );
+        beatIndexRef.current = nextBeat;
+
+        if (nextBeat === 0 && transitionQueuedRef.current) {
+          transitionQueuedRef.current = false;
+          setTransitionQueued(false);
+          const nextPlayback = nextPlaybackState(playbackRef.current, session);
+          playbackRef.current = nextPlayback;
+          setPlayback(nextPlayback);
+          squareBeatRef.current = 0;
+
+          if (nextPlayback.completed) return;
+
+          const nextStep = session.timeline[nextPlayback.stepIndex];
+          activeSectionRef.current =
+            session.sections.find(({ id }) => id === nextStep?.sectionId) ??
+            null;
+          triggerBeat(0);
+          nextBeatAt += intervalMilliseconds;
+          scheduleNextBeat();
+          return;
+        }
+
         const section = activeSectionRef.current;
         if (section) {
           const squareBeats = Math.max(
@@ -298,7 +356,7 @@ export function StageSession() {
           squareBeatRef.current =
             (squareBeatRef.current + 1) % squareBeats;
         }
-        triggerBeat(beatIndexRef.current);
+        triggerBeat(nextBeat);
         nextBeatAt += intervalMilliseconds;
         scheduleNextBeat();
       }, Math.max(0, nextBeatAt - performance.now()));
@@ -341,6 +399,9 @@ export function StageSession() {
     const timer = window.setInterval(() => {
       setPlayback((current) => {
         if (!current.running) return current;
+        if (transitionQueuedRef.current && current.remainingSeconds <= 1) {
+          return { ...current, remainingSeconds: 0 };
+        }
         if (current.remainingSeconds > 1) {
           return { ...current, remainingSeconds: current.remainingSeconds - 1 };
         }
@@ -426,6 +487,8 @@ export function StageSession() {
       chordId: null,
     }));
     setDepartingSectionId(null);
+    transitionQueuedRef.current = false;
+    setTransitionQueued(false);
     if (handoffTimerRef.current !== null) {
       window.clearTimeout(handoffTimerRef.current);
       handoffTimerRef.current = null;
@@ -474,27 +537,13 @@ export function StageSession() {
   }
 
   function moveToNextStep() {
-    setPlayback((current) => {
-      const nextStepIndex = current.stepIndex + 1;
-      const nextStep = activeSession.timeline[nextStepIndex];
+    if (playback.running) {
+      transitionQueuedRef.current = true;
+      setTransitionQueued(true);
+      return;
+    }
 
-      if (!nextStep) {
-        return {
-          ...current,
-          remainingSeconds: 0,
-          running: false,
-          completed: true,
-        };
-      }
-
-      return {
-        stepIndex: nextStepIndex,
-        remainingSeconds: nextStep.durationSeconds,
-        running: current.running,
-        completed: false,
-        started: current.started,
-      };
-    });
+    setPlayback((current) => nextPlaybackState(current, activeSession));
   }
 
   if (playback.completed) {
@@ -666,13 +715,20 @@ export function StageSession() {
             Сбросить
           </button>
           <button
-            className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold sm:px-5 sm:py-3"
+            className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold disabled:cursor-wait disabled:border-[var(--accent)]/40 disabled:text-[var(--accent)] sm:px-5 sm:py-3"
+            disabled={transitionQueued}
             onClick={moveToNextStep}
             type="button"
           >
-            <span className="sm:hidden">{nextStep ? "Далее" : "Финиш"}</span>
+            <span className="sm:hidden">
+              {transitionQueued ? "После такта" : nextStep ? "Далее" : "Финиш"}
+            </span>
             <span className="hidden sm:inline">
-              {nextStep ? "Следующая часть" : "Завершить"}
+              {transitionQueued
+                ? "Переход после такта"
+                : nextStep
+                  ? "Следующая часть"
+                  : "Завершить"}
             </span>
           </button>
         </div>

@@ -167,7 +167,7 @@ body {
 }
 
 .stage-grid-pair .stage-chord-symbol-extra-long {
-  font-size: clamp(2rem, min(22cqw, 48cqh), 12rem);
+  font-size: clamp(2rem, min(19cqw, 48cqh), 11rem);
 }
 
 .stage-chord-symbol-compact {

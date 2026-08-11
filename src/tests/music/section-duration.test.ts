@@ -23,7 +23,7 @@ describe("section duration", () => {
     expect(durationSecondsFromSquares(8, 4, 100, "4/4")).toBe(77);
   });
 
-  it("keeps random A and B durations inside their product ranges", () => {
+  it("keeps random A-D durations inside their product ranges", () => {
     for (let index = 0; index < 100; index += 1) {
       const common = {
         timing,
@@ -40,11 +40,17 @@ describe("section duration", () => {
         ...common,
         label: "B",
       });
+      const durationC = resolveSectionDurationSeconds({ ...common, label: "C" });
+      const durationD = resolveSectionDurationSeconds({ ...common, label: "D" });
 
       expect(durationA).toBeGreaterThanOrEqual(154);
       expect(durationA).toBeLessThanOrEqual(230);
       expect(durationB).toBeGreaterThanOrEqual(77);
       expect(durationB).toBeLessThanOrEqual(154);
+      expect(durationC).toBeGreaterThanOrEqual(77);
+      expect(durationC).toBeLessThanOrEqual(154);
+      expect(durationD).toBeGreaterThanOrEqual(77);
+      expect(durationD).toBeLessThanOrEqual(154);
     }
   });
 

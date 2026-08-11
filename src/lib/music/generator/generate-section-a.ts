@@ -6,7 +6,10 @@ import type {
   Seed,
 } from "../domain/types";
 import { generateHarmonicFunctions } from "../harmony/generate-functions";
-import { getAvailableChordDefinitions } from "../harmony/availability";
+import {
+  createActiveHarmonicPools,
+  getAvailableChordDefinitions,
+} from "../harmony/availability";
 import { diversifyHalfBarChords } from "../harmony/diversify-half-bar-chords";
 import { selectHarmonicChordPattern } from "../harmony/select-chord-pattern";
 import { selectChordDefinitions } from "../harmony/select-chords";
@@ -58,6 +61,7 @@ function createAttempt(
   startsOnRootTonic: boolean,
 ): JamSection {
   const random = createSeededRandom(attemptSeed);
+  const activePools = createActiveHarmonicPools(settings, random);
   const bars = weightedChoice(profile.sectionRules.A.bars, random);
   const durations = generateHarmonicRhythm(
     profile,
@@ -73,6 +77,7 @@ function createAttempt(
     "A",
     durations.length,
     random,
+    activePools,
   );
   const selectedDefinitions =
     chordPattern ??
@@ -87,6 +92,7 @@ function createAttempt(
       profile,
       settings,
       random,
+      activePools,
     ).definitions;
   selectedDefinitions[0] = selectSectionStartDefinition(
     profile,
@@ -94,6 +100,7 @@ function createAttempt(
     "A",
     startsOnRootTonic,
     random,
+    activePools,
   );
   const definitions = diversifyHalfBarChords(
     selectedDefinitions,
@@ -101,6 +108,7 @@ function createAttempt(
     profile,
     settings,
     random,
+    activePools,
   );
 
   return {

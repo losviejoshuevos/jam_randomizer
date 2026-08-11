@@ -4,10 +4,14 @@ import type {
   GenerationSettings,
   HarmonicFunction,
   JamSection,
+  SectionLabel,
   SectionRole,
   Seed,
 } from "../domain/types";
-import { getAvailableChordDefinitions } from "../harmony/availability";
+import {
+  createActiveHarmonicPools,
+  getAvailableChordDefinitions,
+} from "../harmony/availability";
 import { diversifyHalfBarChords } from "../harmony/diversify-half-bar-chords";
 import { selectChordDefinitions } from "../harmony/select-chords";
 import { selectSectionStartDefinition } from "../harmony/select-section-start";
@@ -22,24 +26,23 @@ export interface GenerateSectionBRequest {
   settings: GenerationSettings;
   styleProfile: StyleProfile;
   sectionA: JamSection;
+  label?: Exclude<SectionLabel, "A">;
+  avoidSections?: JamSection[];
 }
 
-function chooseDevelopmentRole(seed: Seed): Exclude<SectionRole, "theme"> {
-  return weightedChoice(
-    [
-      { value: "chorus" as const, weight: 6 },
-      { value: "bridge" as const, weight: 4 },
-    ],
-    createSeededRandom(deriveSeed(seed, "section:B:role")),
-  );
+function sectionRole(label: Exclude<SectionLabel, "A">): SectionRole {
+  if (label === "C") return "bridge";
+  if (label === "D") return "coda";
+  return "development";
 }
 
 function developmentFunctions(
-  role: Exclude<SectionRole, "theme">,
+  template: "chorus" | "bridge",
   chordCount: number,
   availableFunctions: ReadonlySet<HarmonicFunction>,
 ): HarmonicFunction[] {
   const chorusTemplates: Record<number, HarmonicFunction[]> = {
+    1: ["predominant"],
     2: ["predominant", "tonic"],
     4: ["predominant", "color", "dominant", "tonic"],
     8: [
@@ -54,6 +57,7 @@ function developmentFunctions(
     ],
   };
   const bridgeTemplates: Record<number, HarmonicFunction[]> = {
+    1: ["dominant"],
     2: ["color", "dominant"],
     4: ["color", "predominant", "color", "dominant"],
     8: [
@@ -67,7 +71,7 @@ function developmentFunctions(
       "dominant",
     ],
   };
-  const selected = (role === "chorus" ? chorusTemplates : bridgeTemplates)[
+  const selected = (template === "chorus" ? chorusTemplates : bridgeTemplates)[
     chordCount
   ];
 
@@ -120,10 +124,13 @@ function createAttempt(
   attemptSeed: Seed,
   settings: GenerationSettings,
   profile: StyleProfile,
-  role: Exclude<SectionRole, "theme">,
+  label: Exclude<SectionLabel, "A">,
+  role: SectionRole,
+  template: "chorus" | "bridge",
   startsOnRootTonic: boolean,
 ): JamSection {
   const random = createSeededRandom(attemptSeed);
+  const activePools = createActiveHarmonicPools(settings, random);
   const bars = weightedChoice(profile.sectionRules.B.bars, random);
   const durations = generateHarmonicRhythm(
     profile,
@@ -133,12 +140,17 @@ function createAttempt(
     settings.complexity,
     random,
   );
-  const availableDefinitions = getAvailableChordDefinitions(profile, settings);
+  const availableDefinitions = getAvailableChordDefinitions(
+    profile,
+    settings,
+    undefined,
+    activePools,
+  );
   const availableFunctions = new Set(
     availableDefinitions.map(({ harmonicFunction }) => harmonicFunction),
   );
   const functions = developmentFunctions(
-    role,
+    template,
     durations.length,
     availableFunctions,
   );
@@ -147,6 +159,7 @@ function createAttempt(
     profile,
     settings,
     random,
+    activePools,
   );
   const startingDefinition = selectSectionStartDefinition(
     profile,
@@ -154,6 +167,7 @@ function createAttempt(
     "B",
     startsOnRootTonic,
     random,
+    activePools,
   );
   selected.functions[0] = startingDefinition.harmonicFunction;
   selected.definitions[0] = startingDefinition;
@@ -164,9 +178,10 @@ function createAttempt(
     profile,
     settings,
     random,
+    activePools,
   );
 
-  if (role === "chorus") {
+  if (template === "chorus" && definitions.length > 1) {
     const returningTonic = availableDefinitions.find(
       ({ harmonicFunction, roman }) =>
         harmonicFunction === "tonic" &&
@@ -180,8 +195,8 @@ function createAttempt(
 
   return {
     id: `section-${deriveSeed(attemptSeed, "id")}`,
-    label: "B",
-    displayName: "Тема B",
+    label,
+    displayName: `Тема ${label}`,
     role,
     bars,
     repeats: 1,
@@ -213,10 +228,12 @@ function createFallback(
   seed: Seed,
   settings: GenerationSettings,
   profile: StyleProfile,
-  role: Exclude<SectionRole, "theme">,
+  label: Exclude<SectionLabel, "A">,
+  role: SectionRole,
+  template: "chorus" | "bridge",
 ): JamSection {
   const functions: HarmonicFunction[] =
-    role === "chorus"
+    template === "chorus"
       ? ["predominant", "tonic"]
       : [
           getAvailableChordDefinitions(profile, settings, "color").length > 0
@@ -224,19 +241,19 @@ function createFallback(
             : "predominant",
           "dominant",
         ];
-  const random = createSeededRandom(deriveSeed(seed, "section:B:fallback"));
+  const random = createSeededRandom(deriveSeed(seed, `section:${label}:fallback`));
   const selected = selectChordDefinitions(
     functions,
     profile,
     settings,
     random,
   );
-  const attemptSeed = deriveSeed(seed, "section:B:fallback:materialized");
+  const attemptSeed = deriveSeed(seed, `section:${label}:fallback:materialized`);
 
   return {
     id: `section-${deriveSeed(attemptSeed, "id")}`,
-    label: "B",
-    displayName: "Тема B",
+    label,
+    displayName: `Тема ${label}`,
     role,
     bars: 4,
     repeats: 1,
@@ -256,22 +273,28 @@ export function generateSectionB(
   request: GenerateSectionBRequest,
 ): GenerationResult<JamSection> {
   const { seed, settings, styleProfile, sectionA } = request;
-  const role = chooseDevelopmentRole(seed);
+  const label = request.label ?? "B";
+  const role = sectionRole(label);
+  const template = label === "C" ? "bridge" : "chorus";
+  const tonicStartProbability = label === "B" ? 0.4 : label === "C" ? 0.2 : 0.6;
   const startsOnRootTonic =
-    createSeededRandom(deriveSeed(seed, "section:B:start-root-tonic")).next() <
-    0.4;
+    createSeededRandom(deriveSeed(seed, `section:${label}:start-root-tonic`)).next() <
+    tonicStartProbability;
+  const avoidSections = request.avoidSections ?? [sectionA];
 
   for (
     let attempt = 0;
     attempt < styleProfile.validationRules.maximumGenerationAttempts;
     attempt += 1
   ) {
-    const attemptSeed = deriveSeed(seed, `section:B:attempt:${attempt}`);
+    const attemptSeed = deriveSeed(seed, `section:${label}:attempt:${attempt}`);
     const section = createAttempt(
       attemptSeed,
       settings,
       styleProfile,
+      label,
       role,
+      template,
       startsOnRootTonic,
     );
     const validation = validateGeneratedSection(
@@ -281,13 +304,16 @@ export function generateSectionB(
       settings,
     );
 
-    if (validation.valid && !sameHarmony(section, sectionA)) {
+    if (
+      validation.valid &&
+      avoidSections.every((reference) => !sameHarmony(section, reference))
+    ) {
       return { value: section, attempts: attempt + 1, usedFallback: false };
     }
   }
 
   return {
-    value: createFallback(seed, settings, styleProfile, role),
+    value: createFallback(seed, settings, styleProfile, label, role, template),
     attempts: styleProfile.validationRules.maximumGenerationAttempts,
     usedFallback: true,
   };

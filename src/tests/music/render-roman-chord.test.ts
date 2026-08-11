@@ -60,4 +60,23 @@ describe("renderRomanChord", () => {
   ])("formats %s without destroying chord-quality casing", (roman, expected) => {
     expect(formatRomanChord(roman)).toBe(expected);
   });
+
+  it.each([
+    ["i", "i"],
+    ["bIIImaj9", "IIImaj9"],
+    ["iv7", "iv7"],
+    ["v11", "v11"],
+    ["bVImaj7", "VImaj7"],
+    ["bVII13", "VII13"],
+    ["III", "♯III"],
+    ["vi7", "♯vi7"],
+    ["VII", "♯VII"],
+    ["i7/@bIII", "i7/III"],
+    ["bIIImaj7/@bVI", "IIImaj7/VI"],
+  ])(
+    "formats %s relative to the natural minor scale as %s",
+    (roman, expected) => {
+      expect(formatRomanChord(roman, "minor")).toBe(expected);
+    },
+  );
 });

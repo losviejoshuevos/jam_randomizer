@@ -3,6 +3,7 @@ import { deriveSeed } from "../random";
 import { resolveBpm } from "../tempo/resolve-bpm";
 import { calculateTransitionWarningSeconds } from "../tempo/transition-timing";
 import { resolveSectionDurationSeconds } from "../tempo/section-duration";
+import { limitSessionHarmonicSpice } from "../harmony/limit-session-spice";
 import type { GenerateSessionRequest, GenerationResult } from "./contracts";
 import { generateSectionA } from "./generate-section-a";
 import { generateSectionB } from "./generate-section-b";
@@ -47,20 +48,29 @@ export function generateSession(
     styleProfile,
     sectionA: sectionAResult.value,
   });
+  const [sectionA, sectionB] = limitSessionHarmonicSpice(
+    [sectionAResult.value, sectionBResult.value],
+    new Set(["A", "B"]),
+    styleProfile,
+    seed,
+  );
+  if (!sectionA || !sectionB) {
+    throw new Error("Funk session generation requires themes A and B.");
+  }
   const sectionAWarning = calculateTransitionWarningSeconds(
-    sectionAResult.value.bars,
+    sectionA.bars,
     bpm,
     settings.meter,
   );
   const sectionBWarning = calculateTransitionWarningSeconds(
-    sectionBResult.value.bars,
+    sectionB.bars,
     bpm,
     settings.meter,
   );
   const sectionADuration = resolveSectionDurationSeconds({
     timing: settings.timing,
     label: "A",
-    bars: sectionAResult.value.bars,
+    bars: sectionA.bars,
     bpm,
     meter: settings.meter,
     seed,
@@ -68,7 +78,7 @@ export function generateSession(
   const sectionBDuration = resolveSectionDurationSeconds({
     timing: settings.timing,
     label: "B",
-    bars: sectionBResult.value.bars,
+    bars: sectionB.bars,
     bpm,
     meter: settings.meter,
     seed,
@@ -77,21 +87,21 @@ export function generateSession(
     timelineStep(
       seed,
       0,
-      sectionAResult.value.id,
+      sectionA.id,
       sectionADuration,
       sectionAWarning,
     ),
     timelineStep(
       seed,
       1,
-      sectionBResult.value.id,
+      sectionB.id,
       sectionBDuration,
       sectionBWarning,
     ),
     timelineStep(
       seed,
       2,
-      sectionAResult.value.id,
+      sectionA.id,
       sectionADuration,
       sectionAWarning,
     ),
@@ -109,7 +119,7 @@ export function generateSession(
       meter: settings.meter,
       complexity: settings.complexity,
       harmonicFreedom: settings.harmonicFreedom,
-      sections: [sectionAResult.value, sectionBResult.value],
+      sections: [sectionA, sectionB],
       timeline,
       transitionWarningSeconds: Math.max(sectionAWarning, sectionBWarning),
       theme: "dark",

@@ -1,10 +1,14 @@
-import type { ChordDefinition, StyleProfile } from "../domain/style-profile";
-import type { GenerationSettings, SectionLabel } from "../domain/types";
+import type {
+  ChordDefinition,
+  HarmonicPool,
+  StyleProfile,
+} from "../domain/style-profile";
+import type { GenerationSettings, GeneratorSectionLabel } from "../domain/types";
 import type { RandomSource } from "../random";
 import { weightedChoice } from "../random";
 import {
   getAvailableChordDefinitions,
-  getTonalSourceWeight,
+  getHarmonicPoolWeight,
 } from "./availability";
 
 function isRootTonic({ roman }: ChordDefinition): boolean {
@@ -14,16 +18,22 @@ function isRootTonic({ roman }: ChordDefinition): boolean {
 export function selectSectionStartDefinition(
   profile: StyleProfile,
   settings: GenerationSettings,
-  sectionLabel: SectionLabel,
+  sectionLabel: GeneratorSectionLabel,
   preferRootTonic: boolean,
   random: RandomSource,
+  activePools?: ReadonlySet<HarmonicPool>,
 ): ChordDefinition {
   const startFunctionWeights = new Map(
     profile.sectionRules[sectionLabel].allowedStartFunctions.map(
       ({ value, weight }) => [value, weight],
     ),
   );
-  const available = getAvailableChordDefinitions(profile, settings).filter(
+  const available = getAvailableChordDefinitions(
+    profile,
+    settings,
+    undefined,
+    activePools,
+  ).filter(
     ({ harmonicFunction }) => startFunctionWeights.has(harmonicFunction),
   );
   const tonic = available.filter(isRootTonic);
@@ -42,7 +52,7 @@ export function selectSectionStartDefinition(
       weight:
         definition.weight *
         (startFunctionWeights.get(definition.harmonicFunction) ?? 0) *
-        getTonalSourceWeight(definition.tonalSource, profile, settings),
+        getHarmonicPoolWeight(definition.harmonicPool, profile, settings),
     })),
     random,
   );

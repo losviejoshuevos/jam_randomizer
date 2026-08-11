@@ -15,7 +15,7 @@ export interface PersistedJamState {
   recentSessions: JamSession[];
   latestSettings: GenerationSettings | null;
   appliedTimingSettings?: GenerationSettings | null;
-  latestSectionSettings?: Record<SectionLabel, SectionHarmonySettings> | null;
+  latestSectionSettings?: Partial<Record<SectionLabel, SectionHarmonySettings>> | null;
   selectedTheme: ThemeId;
 }
 

@@ -3,7 +3,7 @@ import type {
   GenerationSettings,
   HarmonicFunction,
   JamSection,
-  SectionLabel,
+  GeneratorSectionLabel,
 } from "../domain/types";
 import type { ValidationIssue, ValidationResult } from "../generator/contracts";
 import { getAvailableChordDefinitions } from "../harmony/availability";
@@ -20,7 +20,7 @@ function includesFunction(
 
 export function validateGeneratedSection(
   section: JamSection,
-  sectionLabel: SectionLabel,
+  sectionLabel: GeneratorSectionLabel,
   profile: StyleProfile,
   settings: GenerationSettings,
 ): ValidationResult {

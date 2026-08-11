@@ -10,6 +10,8 @@ import {
   generateSession,
   regenerateSessionSections,
   retimeSession,
+  sessionForm,
+  setSessionForm,
 } from "@/lib/music/generator";
 import { validateGeneratedSection } from "@/lib/music/validation/validate-section";
 
@@ -35,6 +37,31 @@ function settings(
 }
 
 describe("generateSession", () => {
+  function generatedSpiceCount(
+    session: ReturnType<typeof generateSession>["value"],
+  ): number {
+    return session.sections.reduce((sectionTotal, section) => {
+      const spiceRomans = new Set(
+        funkStyleProfile.chordVocabulary
+          .filter(
+            (definition) =>
+              definition.harmonicPool !== "core" &&
+              definition.allowedModes.includes(section.harmonySettings.mode) &&
+              definition.allowedComplexities?.includes(
+                section.harmonySettings.complexity,
+              ),
+          )
+          .map(({ roman }) => roman),
+      );
+      return (
+        sectionTotal +
+        section.chords.filter(
+          ({ source, roman }) => source === "generated" && spiceRomans.has(roman),
+        ).length
+      );
+    }, 0);
+  }
+
   it("builds the A → B → A timeline with BPM-based warnings", () => {
     const generationSettings = settings("medium", "colorful", "minor");
     const result = generateSession({
@@ -96,19 +123,11 @@ describe("generateSession", () => {
               `seed development-${complexity}-${harmonicFreedom}-${mode}-${seed}`,
             ).toBe(false);
             expect(validation).toEqual({ valid: true, issues: [] });
-            expect(sectionB.role === "chorus" || sectionB.role === "bridge").toBe(
-              true,
-            );
+            expect(sectionB.role).toBe("development");
             expect(bHarmony).not.toBe(aHarmony);
-
-            if (sectionB.role === "chorus") {
-              expect(
-                sectionB.chords.at(-1)?.harmonicFunction,
-                `seed development-${complexity}-${harmonicFreedom}-${mode}-${seed}`,
-              ).toBe("tonic");
-            } else {
-              expect(sectionB.chords.at(-1)?.harmonicFunction).toBe("dominant");
-            }
+            expect(["tonic", "dominant", "predominant", "color"]).toContain(
+              sectionB.chords.at(-1)?.harmonicFunction,
+            );
           }
         }
       }
@@ -131,6 +150,18 @@ describe("generateSession", () => {
 
     expect(tonicStarts / sampleSize).toBeGreaterThan(0.35);
     expect(tonicStarts / sampleSize).toBeLessThan(0.45);
+  });
+
+  it("uses no more than one non-core harmony spice per generated session", () => {
+    for (let seed = 0; seed < 1_000; seed += 1) {
+      const session = generateSession({
+        seed: `single-spice-${seed}`,
+        settings: settings("advanced", "adventurous", "major"),
+        styleProfile: funkStyleProfile,
+      }).value;
+
+      expect(generatedSpiceCount(session), `seed single-spice-${seed}`).toBeLessThanOrEqual(1);
+    }
   });
 
   it("changes only session timing when tempo settings are applied", () => {
@@ -293,6 +324,8 @@ describe("generateSession", () => {
           harmonicFreedom: "adventurous",
         },
         B: originalB!.harmonySettings,
+        C: originalB!.harmonySettings,
+        D: originalB!.harmonySettings,
       },
       seed: "focus-next",
       styleProfile: funkStyleProfile,
@@ -301,5 +334,70 @@ describe("generateSession", () => {
     expect(next.sections[0]?.harmonySettings.key).toBe("F#");
     expect(next.sections[1]).toEqual(originalB);
     expect(next.timeline[1]?.sectionId).toBe(originalB?.id);
+  });
+
+  it("creates C and D as independent bridge and coda themes", () => {
+    const generationSettings = settings("medium", "colorful", "minor");
+    const original = generateSession({
+      seed: "multi-theme-original",
+      settings: generationSettings,
+      styleProfile: funkStyleProfile,
+    }).value;
+    const common = original.sections[0]!.harmonySettings;
+    const expanded = regenerateSessionSections({
+      session: original,
+      sectionLabels: ["C", "D"],
+      sectionSettings: { A: common, B: common, C: common, D: common },
+      seed: "multi-theme-expanded",
+      styleProfile: funkStyleProfile,
+    }).value;
+
+    expect(expanded.sections.map(({ label }) => label)).toEqual([
+      "A",
+      "B",
+      "C",
+      "D",
+    ]);
+    expect(expanded.sections.find(({ label }) => label === "C")?.role).toBe(
+      "bridge",
+    );
+    expect(expanded.sections.find(({ label }) => label === "D")?.role).toBe(
+      "coda",
+    );
+  });
+
+  it("uses the timeline as the single source of truth for a custom form", () => {
+    const generationSettings = settings("easy", "strict", "major");
+    const original = generateSession({
+      seed: "custom-form-original",
+      settings: generationSettings,
+      styleProfile: funkStyleProfile,
+    }).value;
+    const common = original.sections[0]!.harmonySettings;
+    const expanded = regenerateSessionSections({
+      session: original,
+      sectionLabels: ["C", "D"],
+      sectionSettings: { A: common, B: common, C: common, D: common },
+      seed: "custom-form-expanded",
+      styleProfile: funkStyleProfile,
+    }).value;
+    const formed = setSessionForm(expanded, ["A", "C", "B", "D", "A"]);
+
+    expect(sessionForm(formed)).toEqual(["A", "C", "B", "D", "A"]);
+    expect(formed).not.toHaveProperty("form");
+  });
+
+  it("removes theme entities that are not used by the selected form", () => {
+    const generationSettings = settings("easy", "strict", "major");
+    const original = generateSession({
+      seed: "single-theme-form",
+      settings: generationSettings,
+      styleProfile: funkStyleProfile,
+    }).value;
+
+    const formed = setSessionForm(original, ["A"]);
+
+    expect(sessionForm(formed)).toEqual(["A"]);
+    expect(formed.sections.map(({ label }) => label)).toEqual(["A"]);
   });
 });

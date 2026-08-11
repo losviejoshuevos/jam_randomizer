@@ -2,17 +2,19 @@ import type {
   Complexity,
   HarmonicFreedom,
   HarmonicFunction,
+  GeneratorSectionLabel,
   Meter,
   Mode,
   RomanChord,
-  SectionLabel,
   WeightedValue,
 } from "./types";
 
-export type TonalSource =
-  | { kind: "diatonic" }
-  | { kind: "parallel-mode" }
-  | { kind: "neighboring-key"; circleOfFifthsOffset: -1 | 1 };
+export type HarmonicPool =
+  | "core"
+  | "nearby"
+  | "chromatic-near"
+  | "chromatic-medium"
+  | "chromatic-far";
 
 export interface ChordDefinition {
   roman: RomanChord;
@@ -21,7 +23,7 @@ export interface ChordDefinition {
   minimumComplexity: Complexity;
   allowedComplexities?: Complexity[];
   allowedModes: Mode[];
-  tonalSource: TonalSource;
+  harmonicPool: HarmonicPool;
   tags?: string[];
 }
 
@@ -29,7 +31,7 @@ export interface HarmonicFunctionPattern {
   id: string;
   functions: HarmonicFunction[];
   weight: number;
-  allowedSections: SectionLabel[];
+  allowedSections: GeneratorSectionLabel[];
   allowedComplexities: Complexity[];
 }
 
@@ -37,7 +39,7 @@ export interface HarmonicChordPattern {
   id: string;
   romanChords: RomanChord[];
   weight: number;
-  allowedSections: SectionLabel[];
+  allowedSections: GeneratorSectionLabel[];
   allowedComplexities: Complexity[];
   allowedModes: Mode[];
 }
@@ -47,7 +49,7 @@ export interface HarmonicRhythmPattern {
   durationsBars: number[];
   minimumComplexity: Complexity;
   allowedMeters: Meter[];
-  allowedSections: SectionLabel[];
+  allowedSections: GeneratorSectionLabel[];
 }
 
 export interface SectionRule {
@@ -59,11 +61,7 @@ export interface SectionRule {
   requireLoopability: boolean;
 }
 
-export interface TonalSourceWeights {
-  diatonic: number;
-  parallelMode: number;
-  neighboringKey: number;
-}
+export type HarmonicPoolWeights = Record<HarmonicPool, number>;
 
 export interface ValidationRules {
   maximumSameChordInSequence: number;
@@ -89,8 +87,9 @@ export interface StyleProfile {
   harmonicFunctionPatterns?: HarmonicFunctionPattern[];
   harmonicChordPatterns?: HarmonicChordPattern[];
   genericHarmonyWeight?: number;
+  maximumGeneratedNonCoreChords?: number;
   harmonicRhythms: WeightedValue<HarmonicRhythmPattern>[];
-  sectionRules: Record<SectionLabel, SectionRule>;
-  tonalSourceWeights: Record<HarmonicFreedom, TonalSourceWeights>;
+  sectionRules: Record<GeneratorSectionLabel, SectionRule>;
+  harmonicPoolWeights: Record<HarmonicFreedom, HarmonicPoolWeights>;
   validationRules: ValidationRules;
 }

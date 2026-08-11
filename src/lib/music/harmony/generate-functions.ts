@@ -2,7 +2,7 @@ import type { StyleProfile } from "../domain/style-profile";
 import type {
   GenerationSettings,
   HarmonicFunction,
-  SectionLabel,
+  GeneratorSectionLabel,
   WeightedValue,
 } from "../domain/types";
 import { getAvailableChordDefinitions } from "./availability";
@@ -19,7 +19,7 @@ function onlyAvailableFunctions(
 export function generateHarmonicFunctions(
   profile: StyleProfile,
   settings: GenerationSettings,
-  sectionLabel: SectionLabel,
+  sectionLabel: GeneratorSectionLabel,
   chordCount: number,
   random: RandomSource,
 ): HarmonicFunction[] {
