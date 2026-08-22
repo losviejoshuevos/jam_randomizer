@@ -84,6 +84,7 @@ function parseSuffix(rawSuffix: string): ParsedSuffix | null {
     .replaceAll("♯", "#");
 
   if (suffix === "") return { quality: "major", suffix: "" };
+  if (suffix === "5") return { quality: "suspended", suffix: "5" };
   if (suffix === "m" || suffix === "min" || suffix === "-") {
     return { quality: "minor", suffix: "" };
   }
@@ -91,13 +92,16 @@ function parseSuffix(rawSuffix: string): ParsedSuffix | null {
     return { quality: "major", suffix: "" };
   }
 
-  const minor = /^(?:m|min|-)(maj7|maj9|6\/9|6|7b5|7|9|11|13|add2|add4|add9)$/.exec(
+  const minor = /^(?:m|min|-)(?:M|Maj|maj)(7|9)$/.exec(suffix);
+  if (minor) return { quality: "minor", suffix: `maj${minor[1]}` };
+
+  const ordinaryMinor = /^(?:m|min|-)(6\/9|6|7b5|7|9|11|13|add2|add4|add9)$/.exec(
     suffix,
   );
-  if (minor) return { quality: "minor", suffix: minor[1] };
+  if (ordinaryMinor) return { quality: "minor", suffix: ordinaryMinor[1] };
 
-  const major = /^(?:maj|M|Δ)(7|9)$/.exec(suffix);
-  if (major) return { quality: "major", suffix: `maj${major[1]}` };
+  const major = /^(?:maj|M|Δ)(7|9)(#11)?$/.exec(suffix);
+  if (major) return { quality: "major", suffix: `maj${major[1]}${major[2] ?? ""}` };
 
   if (suffix === "ø" || suffix === "ø7") {
     return { quality: "minor", suffix: "7b5" };
@@ -119,7 +123,7 @@ function parseSuffix(rawSuffix: string): ParsedSuffix | null {
     return { quality: "suspended", suffix: "sus2" };
   }
   if (
-    /^(?:maj7|maj9|6\/9|6|7sus4|9sus4|13sus4|7#9|7b9|7|9|11|13|add2|add4|add9)$/.test(
+    /^(?:maj7#11|maj9#11|maj7|maj9|6\/9|6|7sus4|9sus4|13sus4|13b9|7alt|7#9|7b9|7b5|7|9|11|13|add2|add4|add9)$/.test(
       suffix,
     )
   ) {
@@ -162,7 +166,7 @@ function inferFunction(
   if (
     semitoneOffset === 2 &&
     (quality === "major" || quality === "augmented") &&
-    /^(?:7|9|11|13|7b9|7#9)/.test(suffix)
+    /^(?:7|9|11|13|7b9|7#9|7alt|13b9)/.test(suffix)
   ) {
     return "dominant";
   }

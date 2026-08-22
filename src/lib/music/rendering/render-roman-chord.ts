@@ -82,7 +82,7 @@ function renderSingleRomanChord(
   key: PitchClass,
   mode: Mode,
 ): string {
-  const match = /^(b|#)?(VII|III|VI|IV|II|V|I|vii|iii|vi|iv|ii|v|i)(maj7|maj9|6\/9|6|add2|add4|add9|sus2|sus4|7sus4|9sus4|13sus4|7#9|7b9|7b5|dim7|dim|aug|7|9|11|13)?$/.exec(
+  const match = /^(b|#)?(VII|III|VI|IV|II|V|I|vii|iii|vi|iv|ii|v|i)(maj7#11|maj9#11|maj7|maj9|6\/9|6|add2|add4|add9|sus2|sus4|7sus4|9sus4|13sus4|13b9|7alt|7#9|7b9|7b5|dim7|dim|aug|7|9|11|13|5)?$/.exec(
     roman,
   );
 
@@ -100,12 +100,16 @@ function renderSingleRomanChord(
     accidental as "b" | "#" | undefined,
   );
   const isMinor = rawDegree === rawDegree.toLowerCase();
-  const quality = extension.startsWith("dim") || extension === "aug"
+  const quality = extension === "5"
+    ? "5"
+    : extension.startsWith("dim") || extension === "aug"
     ? extension
     : extension.startsWith("sus")
       ? extension
       : isMinor
-        ? `m${extension}`
+        ? extension.startsWith("maj")
+          ? `mM${extension.slice(1)}`
+          : `m${extension}`
         : extension;
 
   return `${root}${quality}`;

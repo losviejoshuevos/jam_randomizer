@@ -98,6 +98,10 @@ export interface JamSession {
   seed: Seed;
   title: string;
   styleId: StyleId;
+  /** Hidden, deterministic variant of a broad public style. */
+  styleArchetypeId?: string;
+  /** Session-wide chord treatment keeps all themes stylistically related. */
+  styleChordTreatment?: "power" | "triads" | "mixed";
   key: PitchClass;
   mode: Mode;
   bpm: number;

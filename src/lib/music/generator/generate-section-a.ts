@@ -19,6 +19,11 @@ import { renderRomanChord } from "../rendering/render-roman-chord";
 import { generateHarmonicRhythm } from "../structure/harmonic-rhythm";
 import { validateGeneratedSection } from "../validation/validate-section";
 import type { GenerationResult } from "./contracts";
+import { generateRockSection } from "../rock/generate-rock-section";
+import { generateBluesSection } from "../blues/generate-blues-section";
+import { generateSoulSection } from "../soul/generate-soul-section";
+import { generateJazzSection } from "../jazz/generate-jazz-section";
+import { generateConfiguredGrooveSection } from "../groove/generate-configured-groove-section";
 
 export interface GenerateSectionARequest {
   seed: Seed;
@@ -184,6 +189,52 @@ export function generateSectionA(
   request: GenerateSectionARequest,
 ): GenerationResult<JamSection> {
   const { seed, settings, styleProfile } = request;
+  if (styleProfile.generatorKind === "rock") {
+    return generateRockSection({
+      seed,
+      settings,
+      styleProfile,
+      label: "A",
+    });
+  }
+  if (styleProfile.generatorKind === "blues") {
+    return generateBluesSection({
+      seed,
+      settings,
+      styleProfile,
+      label: "A",
+    });
+  }
+  if (styleProfile.generatorKind === "soul") {
+    return generateSoulSection({
+      seed,
+      settings,
+      styleProfile,
+      label: "A",
+    });
+  }
+  if (styleProfile.generatorKind === "jazz") {
+    return generateJazzSection({
+      seed,
+      settings,
+      styleProfile,
+      label: "A",
+    });
+  }
+  if (
+    styleProfile.generatorKind === "neo-soul" ||
+    styleProfile.generatorKind === "reggae" ||
+    styleProfile.generatorKind === "disco" ||
+    styleProfile.generatorKind === "country"
+  ) {
+    return generateConfiguredGrooveSection({
+      seed,
+      settings,
+      styleProfile,
+      label: "A",
+      generatorKind: styleProfile.generatorKind,
+    });
+  }
   const startsOnRootTonic =
     createSeededRandom(deriveSeed(seed, "section:A:start-root-tonic")).next() <
     0.7;

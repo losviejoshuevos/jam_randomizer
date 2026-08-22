@@ -125,6 +125,8 @@ export function regenerateSessionSections(
       id: `session-${deriveSeed(seed, "session:id")}`,
       seed,
       title: `${styleProfile.name} ${aSettings.key} ${aSettings.mode}`,
+      styleArchetypeId: styleProfile.archetypeId,
+      styleChordTreatment: styleProfile.chordTreatment,
       key: aSettings.key,
       mode: aSettings.mode,
       complexity: aSettings.complexity,

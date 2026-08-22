@@ -35,7 +35,7 @@ export function transposeSessionSections(
     ...session,
     key: sectionA?.harmonySettings.key ?? session.key,
     title: sectionA
-      ? `${session.styleId === "funk" ? "Funk" : session.styleId} ${sectionA.harmonySettings.key} ${sectionA.harmonySettings.mode}`
+      ? `${session.styleId === "funk" ? "Funk" : session.styleId === "rock" ? "Rock" : session.styleId} ${sectionA.harmonySettings.key} ${sectionA.harmonySettings.mode}`
       : session.title,
     sections,
   };

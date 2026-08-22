@@ -13,6 +13,15 @@ export function nextBeatIndex(currentBeat: number, meter: Meter): number {
   return (currentBeat + 1) % beatsPerBar(meter);
 }
 
+export function nextSquareBeatIndex(
+  currentBeat: number,
+  meter: Meter,
+  sectionBars: number,
+): number {
+  const squareBeats = Math.max(1, sectionBars * beatsPerBar(meter));
+  return (currentBeat + 1) % squareBeats;
+}
+
 export function barDurationMilliseconds(bpm: number, meter: Meter): number {
   return (60_000 / bpm) * beatsPerBar(meter);
 }

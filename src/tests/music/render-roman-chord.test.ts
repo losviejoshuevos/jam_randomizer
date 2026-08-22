@@ -17,6 +17,8 @@ describe("renderRomanChord", () => {
     ["i13", "C", "minor", "Cm13"],
     ["V7#9", "C", "major", "G7#9"],
     ["bVII7", "F", "major", "Eb7"],
+    ["I5", "A", "minor", "A5"],
+    ["bIII5", "A", "minor", "C5"],
   ] as const)("renders %s in %s %s as %s", (roman, key, mode, expected) => {
     expect(renderRomanChord(roman, key, mode)).toBe(expected);
   });
@@ -79,4 +81,13 @@ describe("renderRomanChord", () => {
       expect(formatRomanChord(roman, "minor")).toBe(expected);
     },
   );
+});
+
+describe("advanced jazz chord colors", () => {
+  it("renders Lydian and altered extensions", () => {
+    expect(renderRomanChord("Imaj7#11", "C", "major")).toBe("Cmaj7#11");
+    expect(renderRomanChord("V7alt", "C", "major")).toBe("G7alt");
+    expect(renderRomanChord("V13b9", "C", "minor")).toBe("G13b9");
+    expect(renderRomanChord("imaj7", "C", "minor")).toBe("CmMaj7");
+  });
 });

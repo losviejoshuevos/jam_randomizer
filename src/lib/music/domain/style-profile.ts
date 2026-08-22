@@ -73,10 +73,24 @@ export interface ValidationRules {
 export interface StyleProfile {
   id: string;
   name: string;
+  generatorKind?:
+    | "generic"
+    | "rock"
+    | "blues"
+    | "soul"
+    | "jazz"
+    | "neo-soul"
+    | "reggae"
+    | "disco"
+    | "country";
+  archetypeId?: string;
+  chordTreatment?: "power" | "triads" | "mixed";
   bpmRange: {
     min: number;
     max: number;
   };
+  /** Optional weighted subranges for a non-uniform random tempo. */
+  bpmRanges?: WeightedValue<{ min: number; max: number }>[];
   allowedMeters: WeightedValue<Meter>[];
   allowedModes: WeightedValue<Mode>[];
   chordVocabulary: ChordDefinition[];

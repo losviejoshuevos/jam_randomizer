@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { styleDescriptor } from "@/data/styles";
 import type { JamSection, JamSession, Meter } from "@/lib/music/domain/types";
 import { createJamPersistence } from "@/lib/persistence/local-storage";
 import { RouteLink } from "@/components/ui/route-link";
@@ -12,6 +13,7 @@ import {
   chordIdAtBeat,
   formatStageDuration,
   nextBeatIndex,
+  nextSquareBeatIndex,
 } from "@/lib/music/stage/presentation";
 
 interface PlaybackState {
@@ -26,6 +28,22 @@ interface BeatPulse {
   beatIndex: number;
   sequence: number;
   chordId: string | null;
+}
+
+type VisualMetronomeMode = "chord" | "indicator" | "screen";
+
+const visualMetronomeModeLabel: Record<VisualMetronomeMode, string> = {
+  chord: "аккорд",
+  indicator: "индикатор",
+  screen: "экран",
+};
+
+function nextVisualMetronomeMode(
+  current: VisualMetronomeMode,
+): VisualMetronomeMode {
+  if (current === "chord") return "indicator";
+  if (current === "indicator") return "screen";
+  return "chord";
 }
 
 function formatTime(totalSeconds: number): string {
@@ -61,11 +79,13 @@ function SectionGrid({
   compact = false,
   activeChordId = null,
   beatPulse,
+  showChordPulse = true,
 }: {
   section: JamSection;
   compact?: boolean;
   activeChordId?: string | null;
   beatPulse?: BeatPulse;
+  showChordPulse?: boolean;
 }) {
   const chordGroups = groupChordsForDisplay(section.chords);
   const densityClass =
@@ -104,6 +124,7 @@ function SectionGrid({
                   key={chord.id}
                 >
                   {!compact &&
+                  showChordPulse &&
                   activeChordId === chord.id &&
                   beatPulse?.sequence ? (
                     <span
@@ -143,6 +164,7 @@ function SectionGrid({
             key={group.id}
           >
             {!compact &&
+            showChordPulse &&
             activeChordId === chord.id &&
             beatPulse?.sequence ? (
               <span
@@ -219,6 +241,8 @@ export function StageSession() {
     chordId: null,
   });
   const [metronomeVolume, setMetronomeVolume] = useState(0.7);
+  const [visualMetronomeMode, setVisualMetronomeMode] =
+    useState<VisualMetronomeMode>("chord");
   const [transitionQueued, setTransitionQueued] = useState(false);
   const [playback, setPlayback] = useState<PlaybackState>({
     stepIndex: 0,
@@ -327,7 +351,17 @@ export function StageSession() {
         );
         beatIndexRef.current = nextBeat;
 
-        if (nextBeat === 0 && transitionQueuedRef.current) {
+        const section = activeSectionRef.current;
+        const nextSquareBeat = section
+          ? nextSquareBeatIndex(
+              squareBeatRef.current,
+              session.meter,
+              section.bars,
+            )
+          : 0;
+        squareBeatRef.current = nextSquareBeat;
+
+        if (nextSquareBeat === 0 && transitionQueuedRef.current) {
           transitionQueuedRef.current = false;
           setTransitionQueued(false);
           const nextPlayback = nextPlaybackState(playbackRef.current, session);
@@ -347,15 +381,6 @@ export function StageSession() {
           return;
         }
 
-        const section = activeSectionRef.current;
-        if (section) {
-          const squareBeats = Math.max(
-            1,
-            section.bars * beatsPerBar(session.meter),
-          );
-          squareBeatRef.current =
-            (squareBeatRef.current + 1) % squareBeats;
-        }
         triggerBeat(nextBeat);
         nextBeatAt += intervalMilliseconds;
         scheduleNextBeat();
@@ -397,35 +422,33 @@ export function StageSession() {
     }
 
     const timer = window.setInterval(() => {
-      setPlayback((current) => {
-        if (!current.running) return current;
-        if (transitionQueuedRef.current && current.remainingSeconds <= 1) {
-          return { ...current, remainingSeconds: 0 };
-        }
-        if (current.remainingSeconds > 1) {
-          return { ...current, remainingSeconds: current.remainingSeconds - 1 };
-        }
+      const current = playbackRef.current;
+      if (!current.running) return;
 
-        const nextStepIndex = current.stepIndex + 1;
-        const nextStep = session.timeline[nextStepIndex];
+      if (transitionQueuedRef.current && current.remainingSeconds <= 1) {
+        const frozen = { ...current, remainingSeconds: 0 };
+        playbackRef.current = frozen;
+        setPlayback(frozen);
+        return;
+      }
 
-        if (!nextStep) {
-          return {
-            ...current,
-            remainingSeconds: 0,
-            running: false,
-            completed: true,
-          };
-        }
-
-        return {
-          stepIndex: nextStepIndex,
-          remainingSeconds: nextStep.durationSeconds,
-          running: true,
-          completed: false,
-          started: true,
+      if (current.remainingSeconds > 1) {
+        const ticking = {
+          ...current,
+          remainingSeconds: current.remainingSeconds - 1,
         };
-      });
+        playbackRef.current = ticking;
+        setPlayback(ticking);
+        return;
+      }
+
+      // The clock only requests a transition. The metronome scheduler performs
+      // it when the current harmonic square wraps to its first beat.
+      transitionQueuedRef.current = true;
+      setTransitionQueued(true);
+      const queued = { ...current, remainingSeconds: 0 };
+      playbackRef.current = queued;
+      setPlayback(queued);
     }, 1_000);
 
     return () => window.clearInterval(timer);
@@ -579,10 +602,20 @@ export function StageSession() {
 
   return (
     <main className="stage-shell flex h-dvh min-h-0 flex-col overflow-hidden px-3 py-3 text-white sm:px-6 sm:py-4">
+      {visualMetronomeMode === "screen" &&
+      playback.running &&
+      beatPulse.sequence ? (
+        <span
+          aria-hidden="true"
+          className={`stage-screen-beat-pulse ${beatPulse.beatIndex === 0 ? "stage-screen-beat-pulse-accent" : "stage-screen-beat-pulse-regular"}`}
+          data-testid="stage-screen-beat-pulse"
+          key={beatPulse.sequence}
+        />
+      ) : null}
       <header className="relative z-10 flex flex-none items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-[0.65rem] font-bold uppercase tracking-[0.22em] text-[var(--accent)] sm:text-xs sm:tracking-[0.28em]">
-            Funk · {session.bpm} BPM · {session.meter}
+            {styleDescriptor(session.styleId).name} · {session.bpm} BPM · {session.meter}
           </p>
           <div className="mt-1 flex items-baseline gap-3 sm:mt-2">
             <h1 className="shrink-0 text-2xl font-black sm:text-4xl">
@@ -596,18 +629,34 @@ export function StageSession() {
 
         <div className="flex shrink-0 items-center gap-4 sm:gap-7">
           <div className="flex flex-col items-end gap-2">
-            <div
-              aria-label={`Метроном, доля ${beatPulse.beatIndex + 1} из ${totalBeats}`}
-              className="flex items-center gap-1.5"
-              data-testid="stage-metronome"
-            >
-              {Array.from({ length: totalBeats }, (_, index) => (
+            {visualMetronomeMode === "indicator" ? (
+              <div
+                aria-label={`Единый световой метроном, доля ${beatPulse.beatIndex + 1} из ${totalBeats}`}
+                className="stage-metronome-indicator-shell"
+                data-testid="stage-metronome-indicator"
+              >
                 <span
-                  className={`stage-beat-dot ${playback.running && beatPulse.beatIndex === index ? index === 0 ? "stage-beat-dot-accent" : "stage-beat-dot-active" : ""}`}
-                  key={index}
+                  className={`stage-metronome-indicator ${playback.running && beatPulse.sequence ? beatPulse.beatIndex === 0 ? "stage-metronome-indicator-accent" : "stage-metronome-indicator-regular" : ""}`}
+                  key={playback.running ? beatPulse.sequence : "idle"}
                 />
-              ))}
-            </div>
+                <span className="font-mono text-xs font-black tabular-nums text-neutral-300 sm:text-sm">
+                  {beatPulse.beatIndex + 1}/{totalBeats}
+                </span>
+              </div>
+            ) : (
+              <div
+                aria-label={`Метроном, доля ${beatPulse.beatIndex + 1} из ${totalBeats}`}
+                className="flex items-center gap-1.5"
+                data-testid="stage-metronome"
+              >
+                {Array.from({ length: totalBeats }, (_, index) => (
+                  <span
+                    className={`stage-beat-dot ${playback.running && beatPulse.beatIndex === index ? index === 0 ? "stage-beat-dot-accent" : "stage-beat-dot-active" : ""}`}
+                    key={index}
+                  />
+                ))}
+              </div>
+            )}
             <label className="flex items-center gap-2 text-xs font-semibold text-neutral-400">
               <span aria-hidden="true">🔊</span>
               <input
@@ -668,6 +717,7 @@ export function StageSession() {
             activeChordId={beatPulse.chordId}
             beatPulse={beatPulse}
             section={currentSection}
+            showChordPulse={visualMetronomeMode === "chord"}
           />
         </section>
 
@@ -715,17 +765,36 @@ export function StageSession() {
             Сбросить
           </button>
           <button
+            aria-label={
+              `Режим света: ${visualMetronomeModeLabel[visualMetronomeMode]}. ` +
+              `Переключить на ${visualMetronomeModeLabel[nextVisualMetronomeMode(visualMetronomeMode)]}`
+            }
+            className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] sm:px-5 sm:py-3"
+            data-testid="visual-metronome-mode-toggle"
+            onClick={() =>
+              setVisualMetronomeMode(nextVisualMetronomeMode)
+            }
+            type="button"
+          >
+            <span className="sm:hidden">
+              Свет: {visualMetronomeMode === "indicator" ? "точка" : visualMetronomeModeLabel[visualMetronomeMode]}
+            </span>
+            <span className="hidden sm:inline">
+              Свет: {visualMetronomeModeLabel[visualMetronomeMode]}
+            </span>
+          </button>
+          <button
             className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold disabled:cursor-wait disabled:border-[var(--accent)]/40 disabled:text-[var(--accent)] sm:px-5 sm:py-3"
             disabled={transitionQueued}
             onClick={moveToNextStep}
             type="button"
           >
             <span className="sm:hidden">
-              {transitionQueued ? "После такта" : nextStep ? "Далее" : "Финиш"}
+              {transitionQueued ? "После квадрата" : nextStep ? "Далее" : "Финиш"}
             </span>
             <span className="hidden sm:inline">
               {transitionQueued
-                ? "Переход после такта"
+                ? "Переход после квадрата"
                 : nextStep
                   ? "Следующая часть"
                   : "Завершить"}

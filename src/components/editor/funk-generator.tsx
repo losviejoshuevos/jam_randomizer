@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { funkStyleProfile } from "@/data/styles";
+import {
+  STYLE_OPTIONS,
+  resolveStyleProfile,
+  styleDescriptor,
+} from "@/data/styles";
+import type { StyleProfile } from "@/lib/music/domain/style-profile";
 import type {
   Complexity,
   GenerationSettings,
@@ -49,6 +54,7 @@ import {
   squareDurationSeconds,
 } from "@/lib/music/tempo/section-duration";
 import { RouteLink } from "@/components/ui/route-link";
+import { addArchetypeToSessionCode } from "@/lib/music/session-code";
 
 const KEYS: PitchClass[] = [
   "C",
@@ -116,14 +122,41 @@ const MAX_SECTION_SQUARES = 64;
 type CopyStatus = "idle" | "copied" | "failed";
 type ResolvedGenerationSettings = GenerationSettings & { bpm: number };
 
-function createCardCode(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(10));
+function randomBytes(length: number): Uint8Array {
+  const bytes = new Uint8Array(length);
+  const browserCrypto = globalThis.crypto;
+  if (browserCrypto?.getRandomValues) {
+    return browserCrypto.getRandomValues(bytes);
+  }
+
+  for (let index = 0; index < length; index += 1) {
+    bytes[index] = Math.floor(Math.random() * 256);
+  }
+  return bytes;
+}
+
+function createClientId(): string {
+  const browserCrypto = globalThis.crypto;
+  if (browserCrypto?.randomUUID) return browserCrypto.randomUUID();
+
+  return Array.from(
+    randomBytes(16),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+function createCardCode(styleId = "funk"): string {
+  const bytes = randomBytes(10);
   const characters = Array.from(
     bytes,
     (byte) => CARD_CODE_ALPHABET[byte % CARD_CODE_ALPHABET.length],
   );
 
-  return `FUNK-${characters.slice(0, 5).join("")}-${characters.slice(5).join("")}`;
+  const styleMarker = styleId
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return `${styleMarker}-${characters.slice(0, 5).join("")}-${characters.slice(5).join("")}`;
 }
 
 function harmonySettingsFromGeneration(
@@ -158,10 +191,15 @@ function createCard(
   settings: GenerationSettings,
   sectionSettings: Record<SectionLabel, SectionHarmonySettings>,
 ) {
-  const result = generateSession({
+  const styleProfile = resolveStyleProfile(settings.styleId, seed);
+  const sessionCode = addArchetypeToSessionCode(
     seed,
+    styleProfile.archetypeId,
+  );
+  const result = generateSession({
+    seed: sessionCode,
     settings,
-    styleProfile: funkStyleProfile,
+    styleProfile,
     sectionSettings,
   });
   const resolvedSettings: ResolvedGenerationSettings = {
@@ -171,7 +209,7 @@ function createCard(
   };
 
   return {
-    code: seed,
+    code: sessionCode,
     settings: resolvedSettings,
     session: result.value,
     usedFallback: result.usedFallback,
@@ -244,7 +282,12 @@ function recalculateEditedSession(session: JamSession): JamSession {
       meter: session.meter,
       timing,
     },
-    funkStyleProfile,
+    resolveStyleProfile(
+      session.styleId,
+      session.seed,
+      session.styleArchetypeId,
+      session.styleChordTreatment,
+    ),
   );
 }
 
@@ -404,6 +447,7 @@ function HarmonySectionCard({
   onRemoveChord,
   focused,
   onToggleFocus,
+  styleProfile,
 }: {
   section: JamSection;
   warningSeconds: number;
@@ -420,12 +464,13 @@ function HarmonySectionCard({
   onRemoveChord: (sectionId: string, chordId: string) => void;
   focused: boolean;
   onToggleFocus: (label: SectionLabel) => void;
+  styleProfile: StyleProfile;
 }) {
   const chordOptions = Array.from(
     new Map(
       [
-        ...getAvailableChordDefinitions(funkStyleProfile, settings),
-        ...funkStyleProfile.chordVocabulary.filter(({ roman }) =>
+        ...getAvailableChordDefinitions(styleProfile, settings),
+        ...styleProfile.chordVocabulary.filter(({ roman }) =>
           section.chords.some((chord) => chord.roman === roman),
         ),
       ]
@@ -567,7 +612,7 @@ function HarmonySectionCard({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.28em] text-[var(--accent)]">
-            Funk · Тема {section.label}
+            {styleProfile.name} · Тема {section.label}
           </p>
           <p className="mt-2 text-sm text-neutral-500">
             {SECTION_DESCRIPTIONS[section.label]}
@@ -729,6 +774,13 @@ export function FunkGenerator() {
     editingAllThemes || focusedLabels.includes(activeSettingsLabel);
   const activeHarmonySettings = sectionSettings[activeSettingsLabel];
   const existingLabels = card.session.sections.map(({ label }) => label);
+  const selectedStyle = styleDescriptor(settings.styleId);
+  const currentStyleProfile = resolveStyleProfile(
+    card.session.styleId,
+    card.session.seed,
+    card.session.styleArchetypeId,
+    card.session.styleChordTreatment,
+  );
   const currentForm = sessionForm(card.session);
   const currentPreset = Object.entries(FORM_PRESETS).find(
     ([, form]) => form.join("") === currentForm.join(""),
@@ -885,7 +937,10 @@ export function FunkGenerator() {
     nextSectionSettings = sectionSettings,
     nextAppliedTimingSettings = appliedTimingSettings,
   ) {
-    const code = createCardCode();
+    const code = addArchetypeToSessionCode(
+      createCardCode(session.styleId),
+      session.styleArchetypeId,
+    );
     const identifiedSession: JamSession = {
       ...session,
       id: `session-${code}`,
@@ -936,27 +991,51 @@ export function FunkGenerator() {
 
   function generateNewHarmony() {
     try {
-      const code = createCardCode();
-      const targetLabels: SectionLabel[] = focusedLabels.length
+      const baseCode = createCardCode(settings.styleId);
+      const changingStyle = settings.styleId !== card.session.styleId;
+      const targetLabels: SectionLabel[] = !changingStyle && focusedLabels.length
         ? focusedLabels
         : card.session.sections.map(({ label }) => label);
+      const regeneratingWholeSession = card.session.sections.every(({ label }) =>
+        targetLabels.includes(label),
+      );
+      const styleProfile = resolveStyleProfile(
+        settings.styleId,
+        baseCode,
+        regeneratingWholeSession ? undefined : card.session.styleArchetypeId,
+        regeneratingWholeSession ? undefined : card.session.styleChordTreatment,
+      );
+      const code = addArchetypeToSessionCode(
+        baseCode,
+        styleProfile.archetypeId,
+      );
       const generationSession =
         settings.bpm === "random"
           ? {
               ...card.session,
+              styleId: settings.styleId,
+              styleArchetypeId: styleProfile.archetypeId,
+              styleChordTreatment: styleProfile.chordTreatment,
               bpm: resolveDifferentRandomBpm(
                 card.session.bpm,
-                funkStyleProfile.bpmRange,
+                styleProfile.bpmRange,
                 code,
+                styleProfile.bpmRanges,
               ),
             }
-          : card.session;
+          : {
+              ...card.session,
+              styleId: settings.styleId,
+              styleArchetypeId: styleProfile.archetypeId,
+              styleChordTreatment: styleProfile.chordTreatment,
+              bpm: settings.bpm,
+            };
       const result = regenerateSessionSections({
         session: generationSession,
         sectionLabels: targetLabels,
         sectionSettings,
         seed: code,
-        styleProfile: funkStyleProfile,
+        styleProfile,
       });
       const retimedSession = retimeSession(
         result.value,
@@ -964,7 +1043,7 @@ export function FunkGenerator() {
           ...settings,
           bpm: result.value.bpm,
         },
-        funkStyleProfile,
+        styleProfile,
       );
       const nextCard = {
         code,
@@ -1016,7 +1095,7 @@ export function FunkGenerator() {
   }
 
   function applyTimingSettings() {
-    const nextSession = retimeSession(card.session, settings, funkStyleProfile);
+    const nextSession = retimeSession(card.session, settings, currentStyleProfile);
     const nextSettings: ResolvedGenerationSettings = {
       ...card.settings,
       bpm: nextSession.bpm,
@@ -1176,7 +1255,7 @@ export function FunkGenerator() {
       harmonicFreedom: draftSettings.harmonicFreedom,
     };
     const alternate = getAvailableChordDefinitions(
-      funkStyleProfile,
+      currentStyleProfile,
       editingSettings,
     ).find(({ roman }) => roman !== targetChord.roman);
     if (!alternate) {
@@ -1188,7 +1267,7 @@ export function FunkGenerator() {
         ? [
             { ...chord, source: "manual", durationBars: 0.5 },
             {
-              id: `chord-${crypto.randomUUID()}`,
+              id: `chord-${createClientId()}`,
               source: "manual",
               roman: alternate.roman,
               renderedSymbol: renderRomanChord(
@@ -1235,7 +1314,7 @@ export function FunkGenerator() {
       harmonicFreedom: draftSettings.harmonicFreedom,
     };
     const available = getAvailableChordDefinitions(
-      funkStyleProfile,
+      currentStyleProfile,
       editingSettings,
     );
     const previousRoman = targetSection.chords.at(-1)?.roman;
@@ -1247,7 +1326,7 @@ export function FunkGenerator() {
     }
 
     const addedChord: JamChord = {
-      id: `chord-${crypto.randomUUID()}`,
+      id: `chord-${createClientId()}`,
       source: "manual",
       roman: definition.roman,
       renderedSymbol: renderRomanChord(
@@ -1445,7 +1524,10 @@ export function FunkGenerator() {
 
   function applySessionForm(nextForm: SectionLabel[], custom = false) {
     try {
-      const code = createCardCode();
+      const code = addArchetypeToSessionCode(
+        createCardCode(card.session.styleId),
+        card.session.styleArchetypeId,
+      );
       const existing = new Set(card.session.sections.map(({ label }) => label));
       const missing = Array.from(new Set(nextForm)).filter(
         (label) => !existing.has(label),
@@ -1456,14 +1538,14 @@ export function FunkGenerator() {
             sectionLabels: missing,
             sectionSettings,
             seed: code,
-            styleProfile: funkStyleProfile,
+            styleProfile: currentStyleProfile,
           })
         : { value: card.session, usedFallback: false };
       const formed = setSessionForm(generated.value, nextForm);
       const retimed = retimeSession(
         formed,
         { ...settings, bpm: card.session.bpm },
-        funkStyleProfile,
+        currentStyleProfile,
       );
       setFormEditorMode(custom ? "custom" : "preset");
       setFocusedLabels((current) =>
@@ -1554,7 +1636,7 @@ export function FunkGenerator() {
             Jam Randomizer
           </h1>
           <p className="mt-3 max-w-2xl text-[var(--muted)]">
-            Соберите Funk-сессию из тем A–D, настройте её форму и сохраните
+            Соберите джем-сессию из тем A–D, настройте её форму и сохраните
             код понравившегося варианта.
           </p>
         </div>
@@ -1701,6 +1783,28 @@ export function FunkGenerator() {
             Темп, размер и длительность меняются без замены аккордов.
           </p>
           <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-1">
+            <label className="col-span-2 text-sm text-[var(--muted)] lg:col-span-1">
+              Стиль
+              <select
+                aria-label="Стиль"
+                className={FIELD_CLASS}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    styleId: event.target.value,
+                  }))
+                }
+                value={settings.styleId}
+              >
+                {STYLE_OPTIONS.map(({ id, name }) => (
+                  <option key={id} value={id}>{name}</option>
+                ))}
+              </select>
+              <span className="mt-2 block text-xs text-neutral-500">
+                Новый стиль применяется ко всей сессии при следующей генерации.
+              </span>
+            </label>
+
             <fieldset className="col-span-2 lg:col-span-1">
               <legend className="text-sm text-[var(--muted)]">Форма сессии</legend>
               <select
@@ -1812,14 +1916,14 @@ export function FunkGenerator() {
                       setSettings((current) => ({ ...current, bpm: parsed }));
                     }
                   }}
-                  placeholder={`${funkStyleProfile.bpmRange.min}–${funkStyleProfile.bpmRange.max}`}
+                  placeholder={`${selectedStyle.bpmRange.min}–${selectedStyle.bpmRange.max}`}
                   type="number"
                   value={settings.bpm === "random" ? "" : manualBpmInput}
                 />
               </div>
               <p className="mt-2 text-xs text-neutral-500">
-                Случайный темп для Funk: {funkStyleProfile.bpmRange.min}–
-                {funkStyleProfile.bpmRange.max} BPM
+                Случайный темп для {selectedStyle.name}: {selectedStyle.bpmRange.min}–
+                {selectedStyle.bpmRange.max} BPM
               </p>
             </fieldset>
 
@@ -1968,7 +2072,9 @@ export function FunkGenerator() {
 
         <div className="space-y-5">
           <div className="session-strip flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 px-5 py-4">
-            <h2 className="text-2xl font-black sm:text-3xl">Funk-сессия</h2>
+            <h2 className="text-2xl font-black sm:text-3xl">
+              {currentStyleProfile.name}-сессия
+            </h2>
             <div className="text-sm text-[var(--muted)]">
               {card.settings.meter} ·{" "}
               <span data-testid="card-bpm">{card.settings.bpm} BPM</span> · {currentForm.join(" → ")}
@@ -1987,6 +2093,7 @@ export function FunkGenerator() {
               onSplitChord={splitChord}
               onToggleFocus={toggleFocus}
               section={section}
+              styleProfile={currentStyleProfile}
               settings={{
                 ...card.settings,
                 meter: settings.meter,

@@ -27,7 +27,12 @@ export function generateSession(
   request: GenerateSessionRequest,
 ): GenerationResult<JamSession> {
   const { seed, settings, styleProfile } = request;
-  const bpm = resolveBpm(settings.bpm, styleProfile.bpmRange, seed);
+  const bpm = resolveBpm(
+    settings.bpm,
+    styleProfile.bpmRange,
+    seed,
+    styleProfile.bpmRanges,
+  );
   const resolvedSettings: GenerationSettings = { ...settings, bpm };
   const sectionASettings: GenerationSettings = {
     ...resolvedSettings,
@@ -55,7 +60,7 @@ export function generateSession(
     seed,
   );
   if (!sectionA || !sectionB) {
-    throw new Error("Funk session generation requires themes A and B.");
+    throw new Error("Session generation requires themes A and B.");
   }
   const sectionAWarning = calculateTransitionWarningSeconds(
     sectionA.bars,
@@ -113,6 +118,8 @@ export function generateSession(
       seed,
       title: `${styleProfile.name} ${settings.key} ${settings.mode}`,
       styleId: settings.styleId,
+      styleArchetypeId: styleProfile.archetypeId,
+      styleChordTreatment: styleProfile.chordTreatment,
       key: settings.key,
       mode: settings.mode,
       bpm,

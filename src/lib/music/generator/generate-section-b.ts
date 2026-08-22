@@ -20,6 +20,11 @@ import { renderRomanChord } from "../rendering/render-roman-chord";
 import { generateHarmonicRhythm } from "../structure/harmonic-rhythm";
 import { validateGeneratedSection } from "../validation/validate-section";
 import type { GenerationResult } from "./contracts";
+import { generateRockSection } from "../rock/generate-rock-section";
+import { generateBluesSection } from "../blues/generate-blues-section";
+import { generateSoulSection } from "../soul/generate-soul-section";
+import { generateJazzSection } from "../jazz/generate-jazz-section";
+import { generateConfiguredGrooveSection } from "../groove/generate-configured-groove-section";
 
 export interface GenerateSectionBRequest {
   seed: Seed;
@@ -274,6 +279,56 @@ export function generateSectionB(
 ): GenerationResult<JamSection> {
   const { seed, settings, styleProfile, sectionA } = request;
   const label = request.label ?? "B";
+  if (styleProfile.generatorKind === "rock") {
+    return generateRockSection({
+      seed,
+      settings,
+      styleProfile,
+      label,
+      sectionA,
+    });
+  }
+  if (styleProfile.generatorKind === "blues") {
+    return generateBluesSection({
+      seed,
+      settings,
+      styleProfile,
+      label,
+    });
+  }
+  if (styleProfile.generatorKind === "soul") {
+    return generateSoulSection({
+      seed,
+      settings,
+      styleProfile,
+      label,
+      avoidSections: request.avoidSections ?? [sectionA],
+    });
+  }
+  if (styleProfile.generatorKind === "jazz") {
+    return generateJazzSection({
+      seed,
+      settings,
+      styleProfile,
+      label,
+      avoidSections: request.avoidSections ?? [sectionA],
+    });
+  }
+  if (
+    styleProfile.generatorKind === "neo-soul" ||
+    styleProfile.generatorKind === "reggae" ||
+    styleProfile.generatorKind === "disco" ||
+    styleProfile.generatorKind === "country"
+  ) {
+    return generateConfiguredGrooveSection({
+      seed,
+      settings,
+      styleProfile,
+      label,
+      generatorKind: styleProfile.generatorKind,
+      avoidSections: request.avoidSections ?? [sectionA],
+    });
+  }
   const role = sectionRole(label);
   const template = label === "C" ? "bridge" : "chorus";
   const tonicStartProbability = label === "B" ? 0.4 : label === "C" ? 0.2 : 0.6;

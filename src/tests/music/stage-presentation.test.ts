@@ -5,6 +5,7 @@ import {
   chordIdAtBeat,
   formatStageDuration,
   nextBeatIndex,
+  nextSquareBeatIndex,
 } from "@/lib/music/stage/presentation";
 
 describe("Stage presentation", () => {
@@ -27,6 +28,13 @@ describe("Stage presentation", () => {
     expect(nextBeatIndex(1, "3/4")).toBe(2);
     expect(nextBeatIndex(2, "3/4")).toBe(0);
     expect(nextBeatIndex(3, "4/4")).toBe(0);
+  });
+
+  it("reaches a transition boundary only after the complete square", () => {
+    expect(nextSquareBeatIndex(2, "4/4", 4)).toBe(3);
+    expect(nextSquareBeatIndex(3, "4/4", 4)).toBe(4);
+    expect(nextSquareBeatIndex(15, "4/4", 4)).toBe(0);
+    expect(nextSquareBeatIndex(11, "3/4", 4)).toBe(0);
   });
 
   it("maps metronome beats to whole and half-bar chords", () => {
