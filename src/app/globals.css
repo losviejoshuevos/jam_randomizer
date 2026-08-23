@@ -79,14 +79,131 @@ body {
 }
 
 .stage-shell {
+  --stage-background: #050505;
+  --stage-card-background: #1b1c18;
+  --stage-badge-background: #161a0d;
+  --stage-card-border: color-mix(in srgb, var(--accent) 18%, rgba(255, 255, 255, 0.08));
+  --stage-frame-border: color-mix(in srgb, var(--accent-cool) 12%, rgba(255, 255, 255, 0.08));
+  --stage-pattern:
+    repeating-linear-gradient(90deg, transparent 0 95px, rgba(255, 255, 255, 0.018) 96px),
+    repeating-linear-gradient(0deg, transparent 0 95px, rgba(255, 255, 255, 0.018) 96px);
   position: relative;
   isolation: isolate;
   overflow: hidden;
   background:
-    radial-gradient(circle at 16% 5%, rgba(227, 255, 99, 0.11), transparent 30rem),
-    radial-gradient(circle at 88% 28%, rgba(255, 79, 216, 0.09), transparent 34rem),
-    radial-gradient(circle at 52% 105%, rgba(85, 231, 255, 0.08), transparent 36rem),
-    #050505;
+    radial-gradient(circle at 16% 5%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 30rem),
+    radial-gradient(circle at 88% 28%, color-mix(in srgb, var(--accent-hot) 10%, transparent), transparent 34rem),
+    radial-gradient(circle at 52% 105%, color-mix(in srgb, var(--accent-cool) 9%, transparent), transparent 36rem),
+    var(--stage-background);
+  transition: background-color 400ms ease;
+}
+
+.stage-shell[data-style="funk"] {
+  --accent: #dfff3f;
+  --accent-cool: #47e9ff;
+  --accent-hot: #ff4fd8;
+  --stage-background: #050505;
+  --stage-card-background: #191b16;
+  --stage-badge-background: #151a0b;
+  --stage-pattern:
+    repeating-linear-gradient(90deg, transparent 0 79px, rgba(223, 255, 63, 0.025) 80px),
+    repeating-linear-gradient(0deg, transparent 0 79px, rgba(71, 233, 255, 0.02) 80px);
+}
+
+.stage-shell[data-style="rock"] {
+  --accent: #ffb13b;
+  --accent-cool: #ff6b4f;
+  --accent-hot: #ff315f;
+  --stage-background: #090504;
+  --stage-card-background: #211513;
+  --stage-badge-background: #231407;
+  --stage-pattern:
+    repeating-linear-gradient(118deg, transparent 0 118px, rgba(255, 177, 59, 0.035) 119px 121px),
+    linear-gradient(90deg, rgba(255, 49, 95, 0.025), transparent 28%, transparent 72%, rgba(255, 107, 79, 0.025));
+}
+
+.stage-shell[data-style="blues"] {
+  --accent: #69b9ff;
+  --accent-cool: #78e1ff;
+  --accent-hot: #7868ff;
+  --stage-background: #030812;
+  --stage-card-background: #101a29;
+  --stage-badge-background: #091526;
+  --stage-pattern:
+    repeating-linear-gradient(0deg, transparent 0 70px, rgba(105, 185, 255, 0.035) 71px 72px),
+    linear-gradient(110deg, rgba(120, 104, 255, 0.025), transparent 45%);
+}
+
+.stage-shell[data-style="soul"] {
+  --accent: #ffc45f;
+  --accent-cool: #f29aaf;
+  --accent-hot: #a93760;
+  --stage-background: #100509;
+  --stage-card-background: #251217;
+  --stage-badge-background: #251307;
+  --stage-pattern:
+    radial-gradient(circle, rgba(255, 196, 95, 0.055) 0 2px, transparent 2.5px) 0 0 / 96px 96px,
+    radial-gradient(circle, rgba(242, 154, 175, 0.035) 0 2px, transparent 2.5px) 48px 48px / 96px 96px;
+}
+
+.stage-shell[data-style="jazz"] {
+  --accent: #e7b96d;
+  --accent-cool: #6ea8ff;
+  --accent-hot: #ad72d7;
+  --stage-background: #040813;
+  --stage-card-background: #111925;
+  --stage-badge-background: #21180c;
+  --stage-pattern:
+    repeating-linear-gradient(90deg, transparent 0 143px, rgba(231, 185, 109, 0.03) 144px),
+    radial-gradient(ellipse at 50% -10%, rgba(255, 255, 255, 0.055), transparent 50%);
+}
+
+.stage-shell[data-style="neo-soul"] {
+  --accent: #91ffe0;
+  --accent-cool: #789dff;
+  --accent-hot: #d96fff;
+  --stage-background: #070611;
+  --stage-card-background: #181426;
+  --stage-badge-background: #10231f;
+  --stage-pattern:
+    radial-gradient(circle at 22% 28%, rgba(145, 255, 224, 0.05), transparent 18rem),
+    radial-gradient(circle at 78% 66%, rgba(217, 111, 255, 0.045), transparent 20rem);
+}
+
+.stage-shell[data-style="reggae"] {
+  --accent: #ffd34f;
+  --accent-cool: #55d67d;
+  --accent-hot: #ed5b55;
+  --stage-background: #050b06;
+  --stage-card-background: #122018;
+  --stage-badge-background: #211b08;
+  --stage-pattern:
+    repeating-linear-gradient(0deg, transparent 0 62px, rgba(85, 214, 125, 0.035) 63px 64px),
+    linear-gradient(90deg, rgba(237, 91, 85, 0.025), transparent 32%, transparent 68%, rgba(255, 211, 79, 0.025));
+}
+
+.stage-shell[data-style="disco"] {
+  --accent: #f3ef67;
+  --accent-cool: #55e7ff;
+  --accent-hot: #ff4fd8;
+  --stage-background: #080311;
+  --stage-card-background: #1c1028;
+  --stage-badge-background: #211d08;
+  --stage-pattern:
+    repeating-linear-gradient(45deg, transparent 0 88px, rgba(255, 79, 216, 0.035) 89px 90px),
+    repeating-linear-gradient(-45deg, transparent 0 88px, rgba(85, 231, 255, 0.025) 89px 90px);
+}
+
+.stage-shell[data-style="country"] {
+  --accent: #f0b45c;
+  --accent-cool: #58c6bc;
+  --accent-hot: #d66d45;
+  --stage-background: #0d0905;
+  --stage-card-background: #261b12;
+  --stage-badge-background: #2a1909;
+  --stage-pattern:
+    repeating-linear-gradient(125deg, transparent 0 112px, rgba(240, 180, 92, 0.03) 113px 114px),
+    repeating-linear-gradient(55deg, transparent 0 168px, rgba(88, 198, 188, 0.018) 169px 170px);
 }
 
 .stage-shell::before {
@@ -95,33 +212,48 @@ body {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    repeating-linear-gradient(90deg, transparent 0 95px, rgba(255, 255, 255, 0.018) 96px),
-    repeating-linear-gradient(0deg, transparent 0 95px, rgba(255, 255, 255, 0.018) 96px);
+  background: var(--stage-pattern);
   mask-image: linear-gradient(to bottom, black, transparent 82%);
 }
 
+.stage-shell::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 8%, transparent);
+  box-shadow: inset 0 0 9rem color-mix(in srgb, var(--accent-hot) 3%, transparent);
+}
+
 .stage-frame {
-  background: rgba(255, 255, 255, 0.018);
+  border-color: var(--stage-frame-border) !important;
+  background: color-mix(in srgb, var(--stage-card-background) 28%, transparent);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.025),
-    0 0 70px rgba(227, 255, 99, 0.035);
+    0 0 70px color-mix(in srgb, var(--accent) 4%, transparent);
 }
 
 .stage-card {
+  border-color: var(--stage-card-border) !important;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.045), transparent 42%),
-    radial-gradient(circle at 100% 0%, rgba(227, 255, 99, 0.075), transparent 48%),
-    #1b1c18;
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 48%),
+    var(--stage-card-background);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.065),
-    0 16px 38px rgba(0, 0, 0, 0.25);
+    0 16px 38px rgba(0, 0, 0, 0.25),
+    0 0 28px color-mix(in srgb, var(--accent-cool) 3%, transparent);
 }
 
 .stage-bars {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 32px rgba(227, 255, 99, 0.18);
+    0 0 32px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.stage-shell > header p:first-child {
+  text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .stage-primary-panel,
@@ -188,13 +320,13 @@ body {
 .stage-beat-dot-active {
   transform: scale(1.45);
   background: var(--accent-cool);
-  box-shadow: 0 0 18px rgba(85, 231, 255, 0.75);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent-cool) 78%, transparent);
 }
 
 .stage-beat-dot-accent {
   transform: scale(1.7);
   background: var(--accent);
-  box-shadow: 0 0 24px rgba(227, 255, 99, 0.9);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 92%, transparent);
 }
 
 .stage-metronome-indicator-shell {
@@ -216,13 +348,13 @@ body {
 
 .stage-metronome-indicator-accent {
   --indicator-color: var(--accent);
-  --indicator-shadow: rgba(227, 255, 99, 0.88);
+  --indicator-shadow: color-mix(in srgb, var(--accent) 88%, transparent);
   animation: stage-metronome-indicator-pulse 360ms ease-out both;
 }
 
 .stage-metronome-indicator-regular {
   --indicator-color: var(--accent-cool);
-  --indicator-shadow: rgba(85, 231, 255, 0.72);
+  --indicator-shadow: color-mix(in srgb, var(--accent-cool) 72%, transparent);
   animation: stage-metronome-indicator-pulse 300ms ease-out both;
 }
 
@@ -239,15 +371,15 @@ body {
 }
 
 .stage-screen-beat-pulse-accent {
-  --screen-beat-color: rgba(227, 255, 99, 0.98);
-  --screen-beat-background: rgba(227, 255, 99, 0.3);
-  --screen-beat-shadow: rgba(227, 255, 99, 0.58);
+  --screen-beat-color: color-mix(in srgb, var(--accent) 98%, transparent);
+  --screen-beat-background: color-mix(in srgb, var(--accent) 30%, transparent);
+  --screen-beat-shadow: color-mix(in srgb, var(--accent) 58%, transparent);
 }
 
 .stage-screen-beat-pulse-regular {
-  --screen-beat-color: rgba(85, 231, 255, 0.9);
-  --screen-beat-background: rgba(85, 231, 255, 0.2);
-  --screen-beat-shadow: rgba(85, 231, 255, 0.44);
+  --screen-beat-color: color-mix(in srgb, var(--accent-cool) 90%, transparent);
+  --screen-beat-background: color-mix(in srgb, var(--accent-cool) 20%, transparent);
+  --screen-beat-shadow: color-mix(in srgb, var(--accent-cool) 44%, transparent);
 }
 
 .stage-card-beat-pulse {
@@ -265,15 +397,15 @@ body {
 }
 
 .stage-card-beat-pulse-accent {
-  --beat-color: rgba(227, 255, 99, 0.95);
-  --beat-background: rgba(227, 255, 99, 0.15);
-  --beat-shadow: rgba(227, 255, 99, 0.42);
+  --beat-color: color-mix(in srgb, var(--accent) 95%, transparent);
+  --beat-background: color-mix(in srgb, var(--accent) 15%, transparent);
+  --beat-shadow: color-mix(in srgb, var(--accent) 42%, transparent);
 }
 
 .stage-card-beat-pulse-regular {
-  --beat-color: rgba(85, 231, 255, 0.72);
-  --beat-background: rgba(85, 231, 255, 0.07);
-  --beat-shadow: rgba(85, 231, 255, 0.25);
+  --beat-color: color-mix(in srgb, var(--accent-cool) 72%, transparent);
+  --beat-background: color-mix(in srgb, var(--accent-cool) 7%, transparent);
+  --beat-shadow: color-mix(in srgb, var(--accent-cool) 25%, transparent);
 }
 
 .metronome-volume {

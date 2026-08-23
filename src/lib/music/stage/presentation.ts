@@ -26,6 +26,56 @@ export function barDurationMilliseconds(bpm: number, meter: Meter): number {
   return (60_000 / bpm) * beatsPerBar(meter);
 }
 
+export function synchronizedBeatPosition(options: {
+  serverNowMs: number;
+  anchorAtMs: number;
+  beatMilliseconds: number;
+  anchorBeatIndex: number;
+  anchorSquareBeat: number;
+  meter: Meter;
+  squareBeats: number;
+}) {
+  const elapsed = Math.max(0, options.serverNowMs - options.anchorAtMs);
+  const elapsedBeats = Math.floor(elapsed / options.beatMilliseconds);
+  return {
+    beatIndex:
+      (options.anchorBeatIndex + elapsedBeats) % beatsPerBar(options.meter),
+    squareBeat:
+      (options.anchorSquareBeat + elapsedBeats) % Math.max(1, options.squareBeats),
+    millisecondsUntilNextBeat: Math.max(
+      16,
+      options.beatMilliseconds - (elapsed % options.beatMilliseconds),
+    ),
+  };
+}
+
+export function synchronizedRemainingSeconds(options: {
+  remainingAtAnchor: number;
+  anchorAtMs: number;
+  serverNowMs: number;
+}): number {
+  const elapsedSeconds = Math.max(
+    0,
+    (options.serverNowMs - options.anchorAtMs) / 1_000,
+  );
+  return Math.max(0, options.remainingAtAnchor - elapsedSeconds);
+}
+
+export function shouldShowNextSectionPreview(options: {
+  running: boolean;
+  hasNextSection: boolean;
+  transitionQueued: boolean;
+  remainingSeconds: number;
+  warningSeconds: number;
+}): boolean {
+  return (
+    options.running &&
+    options.hasNextSection &&
+    (options.transitionQueued ||
+      options.remainingSeconds <= options.warningSeconds)
+  );
+}
+
 export function chordIdAtBeat(
   chords: readonly JamChord[],
   beatWithinSquare: number,

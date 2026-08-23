@@ -48,6 +48,7 @@ function migrateVersionOne(state: PersistedJamState): PersistedJamState {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     currentSession,
     recentSessions: state.recentSessions.map(migrateSession),
+    favoriteSessions: [],
     latestSectionSettings: currentSession
       ? {
           A:
@@ -78,6 +79,16 @@ function migrateVersionOne(state: PersistedJamState): PersistedJamState {
   };
 }
 
+function migrateVersionTwo(state: PersistedJamState): PersistedJamState {
+  return {
+    ...state,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    currentSession: state.currentSession ? migrateSession(state.currentSession) : null,
+    recentSessions: state.recentSessions.map(migrateSession),
+    favoriteSessions: [],
+  };
+}
+
 export function createJamPersistence(storage: KeyValueStorage): JamPersistence {
   return {
     load(): PersistenceResult<PersistedJamState | null> {
@@ -96,6 +107,10 @@ export function createJamPersistence(storage: KeyValueStorage): JamPersistence {
 
         if (parsed.schemaVersion === 1) {
           return { ok: true, value: migrateVersionOne(parsed) };
+        }
+
+        if (parsed.schemaVersion === 2) {
+          return { ok: true, value: migrateVersionTwo(parsed) };
         }
 
         if (parsed.schemaVersion !== CURRENT_SCHEMA_VERSION) {

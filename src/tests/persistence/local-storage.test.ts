@@ -31,6 +31,7 @@ const emptyState: PersistedJamState = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
   currentSession: null,
   recentSessions: [],
+  favoriteSessions: [],
   latestSettings: null,
   selectedTheme: "dark",
 };

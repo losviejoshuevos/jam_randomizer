@@ -55,6 +55,14 @@ import {
 } from "@/lib/music/tempo/section-duration";
 import { RouteLink } from "@/components/ui/route-link";
 import { addArchetypeToSessionCode } from "@/lib/music/session-code";
+import { SessionSharingPanel } from "@/components/sharing/session-sharing-panel";
+import {
+  decodeSessionPayload,
+  SESSION_QUERY_KEY,
+} from "@/lib/sharing/session-payload";
+import { loadActiveHostRoom } from "@/lib/realtime/active-host-room";
+import { publishRoomState } from "@/lib/realtime/room-client";
+import { StylePerformanceGuide } from "@/components/style/style-performance-guide";
 
 const KEYS: PitchClass[] = [
   "C",
@@ -755,6 +763,7 @@ export function FunkGenerator() {
     A: "16", B: "8", C: "8", D: "8",
   });
   const [recentSessions, setRecentSessions] = useState<JamSession[]>([]);
+  const [favoriteSessions, setFavoriteSessions] = useState<JamSession[]>([]);
   const [card, setCard] = useState(() =>
     createCard(INITIAL_CARD_CODE, DEFAULT_SETTINGS, {
       A: harmonySettingsFromGeneration(DEFAULT_SETTINGS),
@@ -846,6 +855,19 @@ export function FunkGenerator() {
   }
 
   useEffect(() => {
+    const activeRoom = loadActiveHostRoom();
+    if (!activeRoom) return;
+    const heartbeat = () => {
+      void publishRoomState(activeRoom.roomId, activeRoom.hostToken, {
+        heartbeat: true,
+      });
+    };
+    heartbeat();
+    const timer = window.setInterval(heartbeat, 10_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     const restoreTimer = window.setTimeout(() => {
       const loaded = createJamPersistence(window.localStorage).load();
 
@@ -856,7 +878,58 @@ export function FunkGenerator() {
         return;
       }
 
+      const payload = new URLSearchParams(window.location.search).get(
+        SESSION_QUERY_KEY,
+      );
+      if (payload) {
+        try {
+          const importedSession = decodeSessionPayload(payload);
+          const importedSettings = settingsFromSession(importedSession);
+          const importedSectionSettings = sectionSettingsFromSession(importedSession);
+          const nextRecent = [importedSession, ...(loaded.value?.recentSessions ?? [])]
+            .filter(
+              (item, index, items) =>
+                items.findIndex(({ id }) => id === item.id) === index,
+            )
+            .slice(0, MAX_RECENT_SESSIONS);
+          setRecentSessions(nextRecent);
+          setFavoriteSessions(loaded.value?.favoriteSessions ?? []);
+          setSettings(importedSettings);
+          setAppliedTimingSettings(importedSettings);
+          setSectionSettings(importedSectionSettings);
+          setManualBpm(importedSession.bpm);
+          setManualBpmInput(String(importedSession.bpm));
+          syncTimingInputs(importedSettings);
+          setCard({
+            code: importedSession.seed,
+            settings: { ...importedSettings, bpm: importedSession.bpm },
+            session: importedSession,
+            usedFallback: false,
+          });
+          createJamPersistence(window.localStorage).save({
+            schemaVersion: CURRENT_SCHEMA_VERSION,
+            currentSession: importedSession,
+            recentSessions: nextRecent,
+            favoriteSessions: loaded.value?.favoriteSessions ?? [],
+            latestSettings: importedSettings,
+            latestSectionSettings: importedSectionSettings,
+            appliedTimingSettings: importedSettings,
+            selectedTheme: "dark",
+          });
+          window.history.replaceState({}, "", "/");
+          setPersistenceMessage("Сессия импортирована из ссылки.");
+          return;
+        } catch (importError) {
+          setPersistenceMessage(
+            importError instanceof Error
+              ? importError.message
+              : "Не удалось импортировать сессию из ссылки.",
+          );
+        }
+      }
+
       setRecentSessions(loaded.value?.recentSessions ?? []);
+      setFavoriteSessions(loaded.value?.favoriteSessions ?? []);
 
       if (loaded.value?.currentSession) {
         const restoredSettings =
@@ -914,6 +987,7 @@ export function FunkGenerator() {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       currentSession: session,
       recentSessions: nextRecent,
+      favoriteSessions,
       latestSettings: {
         ...latestSettings,
         timing: { ...latestSettings.timing },
@@ -987,6 +1061,25 @@ export function FunkGenerator() {
       restoredSettings,
     );
     setCopyStatus("idle");
+  }
+
+  function toggleFavorite(session: JamSession) {
+    const exists = favoriteSessions.some(({ id }) => id === session.id);
+    const nextFavorites = exists
+      ? favoriteSessions.filter(({ id }) => id !== session.id)
+      : [session, ...favoriteSessions].slice(0, 100);
+    setFavoriteSessions(nextFavorites);
+    createJamPersistence(window.localStorage).save({
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      currentSession: card.session,
+      recentSessions,
+      favoriteSessions: nextFavorites,
+      latestSettings: settings,
+      latestSectionSettings: sectionSettings,
+      appliedTimingSettings,
+      selectedTheme: "dark",
+    });
+    setPersistenceMessage(exists ? "Удалено из избранного." : "Сохранено в избранное.");
   }
 
   function generateNewHarmony() {
@@ -1618,6 +1711,7 @@ export function FunkGenerator() {
         schemaVersion: CURRENT_SCHEMA_VERSION,
         currentSession: card.session,
         recentSessions,
+        favoriteSessions,
         latestSettings: settings,
         latestSectionSettings: next,
         appliedTimingSettings,
@@ -1640,7 +1734,13 @@ export function FunkGenerator() {
             код понравившегося варианта.
           </p>
         </div>
-        <RouteLink href="/stage">На сцену</RouteLink>
+        <div className="flex flex-wrap items-center gap-3">
+          <StylePerformanceGuide
+            className="rounded-full border border-white/15 px-5 py-3 text-sm font-bold text-white transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] active:scale-95"
+            styleId={settings.styleId}
+          />
+          <RouteLink href="/stage">На сцену</RouteLink>
+        </div>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
@@ -2120,6 +2220,15 @@ export function FunkGenerator() {
               >
                 {copyStatus === "copied" ? "Скопировано" : "Копировать"}
               </button>
+              <button
+                className="rounded-full border border-white/15 px-3 py-1.5 text-white transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                onClick={() => toggleFavorite(card.session)}
+                type="button"
+              >
+                {favoriteSessions.some(({ id }) => id === card.session.id)
+                  ? "★ В избранном"
+                  : "☆ В избранное"}
+              </button>
               {copyStatus === "failed" ? (
                 <span className="text-red-300">Не удалось скопировать</span>
               ) : null}
@@ -2127,6 +2236,33 @@ export function FunkGenerator() {
           </footer>
         </div>
       </div>
+
+      <SessionSharingPanel onImport={openSession} session={card.session} />
+
+      <section className="history-panel mt-8 rounded-3xl border border-white/10 p-5 sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="text-2xl font-black">Избранное</h2>
+          <p className="text-xs text-neutral-500">Хранится на этом устройстве</p>
+        </div>
+        {favoriteSessions.length ? (
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {favoriteSessions.map((session) => (
+              <article className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--accent)]/20 bg-black/30 p-4" key={session.id}>
+                <div className="min-w-0">
+                  <p className="truncate font-bold text-white">★ {session.seed}</p>
+                  <p className="mt-1 text-sm text-[var(--muted)]">{styleDescriptor(session.styleId).name} · {session.bpm} BPM · {session.meter}</p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold hover:border-[var(--accent)]" onClick={() => openSession(session)} type="button">Открыть</button>
+                  <button aria-label={`Удалить ${session.seed} из избранного`} className="rounded-full border border-red-400/20 px-3 py-2 text-sm text-red-200 hover:border-red-300" onClick={() => toggleFavorite(session)} type="button">×</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-5 text-sm text-[var(--muted)]">Отмечайте удачные сессии звёздочкой — они не исчезнут из-за ограничения истории.</p>
+        )}
+      </section>
 
       <section className="history-panel mt-8 rounded-3xl border border-white/10 p-5 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">

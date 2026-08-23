@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { styleDescriptor } from "@/data/styles";
 import type { JamSection, JamSession, Meter } from "@/lib/music/domain/types";
 import { createJamPersistence } from "@/lib/persistence/local-storage";
@@ -14,7 +15,28 @@ import {
   formatStageDuration,
   nextBeatIndex,
   nextSquareBeatIndex,
+  shouldShowNextSectionPreview,
+  synchronizedBeatPosition,
+  synchronizedRemainingSeconds,
 } from "@/lib/music/stage/presentation";
+import { LiveRoomPanel } from "@/components/sharing/live-room-panel";
+import {
+  getRoomState,
+  measureServerClock,
+  publishRoomState,
+  subscribeToRoom,
+} from "@/lib/realtime/room-client";
+import type { CreatedRoom, PublicRoomState } from "@/lib/realtime/room-types";
+import {
+  decodeSessionPayload,
+  encodeSessionPayload,
+  SESSION_QUERY_KEY,
+} from "@/lib/sharing/session-payload";
+import {
+  clearActiveHostRoom,
+  loadActiveHostRoom,
+} from "@/lib/realtime/active-host-room";
+import { StylePerformanceGuide } from "@/components/style/style-performance-guide";
 
 interface PlaybackState {
   stepIndex: number;
@@ -28,6 +50,13 @@ interface BeatPulse {
   beatIndex: number;
   sequence: number;
   chordId: string | null;
+}
+
+interface GuestBeatSync {
+  anchorAtMs: number;
+  beatIndex: number;
+  squareBeat: number;
+  revision: number;
 }
 
 type VisualMetronomeMode = "chord" | "indicator" | "screen";
@@ -112,10 +141,10 @@ function SectionGrid({
         if (group.chords.length === 2) {
           return (
             <div
-              className="stage-card relative col-span-2 grid min-w-0 grid-cols-2 overflow-hidden rounded-2xl border border-[var(--accent)]/30 shadow-[0_0_28px_rgba(220,255,65,0.06)]"
+              className="stage-card relative col-span-2 grid min-w-0 grid-cols-2 overflow-hidden rounded-2xl border border-[var(--accent)]/30 shadow-[0_0_28px_rgba(220,255,65,0.06)] [container-type:size]"
               key={group.id}
             >
-              <div className={`stage-bars absolute right-2 top-2 z-10 whitespace-nowrap rounded-xl border border-[var(--accent)]/50 bg-[#161a0d] font-black text-[var(--accent)] shadow-[0_0_28px_rgba(220,255,65,0.24)] ${compact ? "px-3 py-1.5 text-xl" : "px-5 py-3 text-3xl sm:right-4 sm:top-4 sm:px-6 sm:text-5xl"}`}>
+              <div className={`absolute right-2 top-2 z-10 whitespace-nowrap rounded-xl border border-[var(--accent)]/50 bg-[var(--stage-badge-background)] font-black text-[var(--accent)] ${compact ? "px-1.5 py-0.5 text-xs" : "stage-bars px-5 py-3 text-3xl sm:right-4 sm:top-4 sm:px-6 sm:text-5xl"}`}>
                 x1
               </div>
               {group.chords.map((chord, halfIndex) => (
@@ -175,7 +204,7 @@ function SectionGrid({
             <span className="absolute left-2 top-2 text-[0.6rem] text-neutral-500 sm:left-4 sm:top-4 sm:text-xs">
               {group.startIndex + 1}
             </span>
-            <span className={`absolute right-2 top-2 z-10 rounded-xl border border-[var(--accent)]/50 bg-[#161a0d] font-black text-[var(--accent)] ${compact ? "px-3 py-1.5 text-xl" : "stage-bars px-5 py-3 text-3xl shadow-[0_0_28px_rgba(220,255,65,0.24)] sm:right-4 sm:top-4 sm:px-6 sm:text-5xl"}`}>
+            <span className={`absolute right-2 top-2 z-10 rounded-xl border border-[var(--accent)]/50 bg-[var(--stage-badge-background)] font-black text-[var(--accent)] ${compact ? "px-1.5 py-0.5 text-xs" : "stage-bars px-5 py-3 text-3xl sm:right-4 sm:top-4 sm:px-6 sm:text-5xl"}`}>
                 {formatStageDuration(chord.durationBars)}
             </span>
             <p
@@ -230,6 +259,7 @@ function nextPlaybackState(
 }
 
 export function StageSession() {
+  const router = useRouter();
   const [session, setSession] = useState<JamSession | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [departingSectionId, setDepartingSectionId] = useState<string | null>(
@@ -244,6 +274,20 @@ export function StageSession() {
   const [visualMetronomeMode, setVisualMetronomeMode] =
     useState<VisualMetronomeMode>("chord");
   const [transitionQueued, setTransitionQueued] = useState(false);
+  const [guestMode, setGuestMode] = useState(false);
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [roomConnected, setRoomConnected] = useState(false);
+  const [hostRoom, setHostRoom] = useState<CreatedRoom | null>(null);
+  const [sharedPayload, setSharedPayload] = useState<string | null>(null);
+  const [guestBeatSync, setGuestBeatSync] = useState<GuestBeatSync | null>(null);
+  const [debugEnabled, setDebugEnabled] = useState(false);
+  const [clockRoundTripMs, setClockRoundTripMs] = useState<number | null>(null);
+  const [lastRoomState, setLastRoomState] = useState<PublicRoomState | null>(null);
+  const [diagnosticsCopied, setDiagnosticsCopied] = useState(false);
+  const [startScheduling, setStartScheduling] = useState(false);
+  const [hostDisconnected, setHostDisconnected] = useState(false);
+  const [roomTerminated, setRoomTerminated] = useState(false);
+  const [exitChoiceOpen, setExitChoiceOpen] = useState(false);
   const [playback, setPlayback] = useState<PlaybackState>({
     stepIndex: 0,
     remainingSeconds: 0,
@@ -261,10 +305,24 @@ export function StageSession() {
   const regularAudioRef = useRef<HTMLAudioElement | null>(null);
   const transitionQueuedRef = useRef(false);
   const playbackRef = useRef(playback);
+  const lastPublishedSnapshotRef = useRef<string | null>(null);
+  const serverClockOffsetRef = useRef(0);
+  const scheduledStartTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     playbackRef.current = playback;
   }, [playback]);
+
+  useEffect(() => {
+    if (!debugEnabled || !lastRoomState) return;
+    console.info("[Jam Randomizer · room state]", {
+      receivedAt: new Date().toISOString(),
+      roomConnected,
+      clockRoundTripMs,
+      serverClockOffsetMs: Math.round(serverClockOffsetRef.current),
+      state: lastRoomState,
+    });
+  }, [clockRoundTripMs, debugEnabled, lastRoomState, roomConnected]);
 
   const triggerBeat = useCallback((beatIndex: number) => {
     const audio =
@@ -293,6 +351,80 @@ export function StageSession() {
   }, []);
 
   useEffect(() => {
+    if (!session || guestMode || hostRoom) return;
+    const active = loadActiveHostRoom();
+    if (!active) return;
+    let cancelled = false;
+    void getRoomState(active.roomId).then(async (room) => {
+      if (cancelled || room.phase === "terminated") {
+        if (room.phase === "terminated") clearActiveHostRoom();
+        return;
+      }
+      let attachedRoom = room;
+      if (room.sessionId !== session.id || room.phase === "waiting") {
+        attachedRoom = await publishRoomState(active.roomId, active.hostToken, {
+          sessionId: session.id,
+          sessionPayload: encodeSessionPayload(session),
+          phase: "idle",
+          stepIndex: 0,
+          remainingSeconds: session.timeline[0]?.durationSeconds ?? 0,
+          beatIndex: 0,
+          squareBeat: 0,
+        });
+        setPlayback(initialPlayback(session));
+      } else if (room.phase === "playing" || room.phase === "paused") {
+        const anchorAt = Date.parse(room.beatAnchorAt ?? room.updatedAt);
+        const remainingSeconds = synchronizedRemainingSeconds({
+          remainingAtAnchor: room.remainingSeconds,
+          anchorAtMs: anchorAt,
+          serverNowMs: Date.now(),
+        });
+        beatIndexRef.current = room.beatIndex;
+        squareBeatRef.current = room.squareBeat;
+        setPlayback({
+          stepIndex: room.stepIndex,
+          remainingSeconds,
+          running: false,
+          completed: false,
+          started: true,
+        });
+        attachedRoom = await publishRoomState(active.roomId, active.hostToken, {
+          phase: "paused",
+          stepIndex: room.stepIndex,
+          remainingSeconds,
+          beatIndex: room.beatIndex,
+          squareBeat: room.squareBeat,
+        });
+      }
+      if (!cancelled) {
+        setHostRoom({
+          room: attachedRoom,
+          hostToken: active.hostToken,
+          storage: active.storage,
+        });
+      }
+    }).catch(() => {
+      clearActiveHostRoom();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [guestMode, hostRoom, session]);
+
+  useEffect(() => {
+    if (!hostRoom || guestMode) return;
+    const heartbeat = () => {
+      void publishRoomState(hostRoom.room.roomId, hostRoom.hostToken, {
+        heartbeat: true,
+      }).catch(() => setLoadError("Связь комнаты с сервером потеряна."));
+    };
+    heartbeat();
+    const timer = window.setInterval(heartbeat, 10_000);
+    return () => window.clearInterval(timer);
+  }, [guestMode, hostRoom]);
+
+  useEffect(() => {
+    if (guestMode) return;
     const accent = new Audio("/service_files/accent.wav");
     const regular = new Audio("/service_files/regular.wav");
     accent.preload = "auto";
@@ -306,7 +438,7 @@ export function StageSession() {
       accentAudioRef.current = null;
       regularAudioRef.current = null;
     };
-  }, []);
+  }, [guestMode]);
 
   useEffect(() => {
     if (accentAudioRef.current) {
@@ -319,6 +451,26 @@ export function StageSession() {
 
   useEffect(() => {
     const restoreTimer = window.setTimeout(() => {
+      const query = new URLSearchParams(window.location.search);
+      const payload = query.get(SESSION_QUERY_KEY);
+      const requestedRoomId = query.get("room");
+      const requestedGuestMode = query.get("role") === "guest";
+      setDebugEnabled(query.get("debug") === "1");
+      if (payload) {
+        try {
+          const sharedSession = decodeSessionPayload(payload);
+          setSharedPayload(payload);
+          setSession(sharedSession);
+          setPlayback(initialPlayback(sharedSession));
+          setGuestMode(requestedGuestMode);
+          setRoomId(requestedRoomId);
+          previousStepIndexRef.current = 0;
+          return;
+        } catch (error) {
+          setLoadError(error instanceof Error ? error.message : "Не удалось открыть ссылку.");
+          return;
+        }
+      }
       const loaded = createJamPersistence(window.localStorage).load();
 
       if (!loaded.ok || !loaded.value?.currentSession) {
@@ -337,7 +489,202 @@ export function StageSession() {
   }, []);
 
   useEffect(() => {
-    if (!session || !playback.running) return;
+    if (!guestMode || !roomId) return;
+    let cancelled = false;
+    const synchronize = () => {
+      void measureServerClock().then((clock) => {
+        if (cancelled) return;
+        serverClockOffsetRef.current = clock.offsetMs;
+        setClockRoundTripMs(clock.roundTripMs);
+      }).catch(() => {
+        // The room can still work with the device clock if the probe fails.
+      });
+    };
+    synchronize();
+    const timer = window.setInterval(synchronize, 5 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [guestMode, roomId]);
+
+  useEffect(() => {
+    if (!guestMode || roomConnected || roomTerminated) return;
+    const timer = window.setTimeout(() => {
+      setHostDisconnected(true);
+      setPlayback((current) => ({ ...current, running: false }));
+    }, 15_000);
+    return () => window.clearTimeout(timer);
+  }, [guestMode, roomConnected, roomTerminated]);
+
+  useEffect(() => {
+    if (!guestMode || !roomId || !session) return;
+    const applyRoomState = (state: PublicRoomState) => {
+      let roomSession = session;
+      if (state.sessionId !== session.id) {
+        try {
+          roomSession = decodeSessionPayload(state.sessionPayload);
+          setSession(roomSession);
+          setSharedPayload(state.sessionPayload);
+          previousStepIndexRef.current = 0;
+        } catch {
+          setLoadError("Ведущий передал повреждённую сессию.");
+          return;
+        }
+      }
+      const timerAnchorAt = state.beatAnchorAt ?? state.updatedAt;
+      const elapsed =
+        state.phase === "playing"
+          ? Math.max(
+              0,
+              (Date.now() + serverClockOffsetRef.current -
+                Date.parse(timerAnchorAt)) /
+                1000,
+            )
+          : 0;
+      const next: PlaybackState = {
+        stepIndex: Math.min(state.stepIndex, roomSession.timeline.length - 1),
+        remainingSeconds: Math.max(0, state.remainingSeconds - elapsed),
+        running: state.phase === "playing",
+        completed: state.phase === "complete",
+        started: state.phase !== "idle",
+      };
+      if (next.stepIndex !== playbackRef.current.stepIndex) {
+        const previousStep = session.timeline[playbackRef.current.stepIndex];
+        previousStepIndexRef.current = next.stepIndex;
+        setDepartingSectionId(previousStep?.sectionId ?? null);
+        if (handoffTimerRef.current !== null) {
+          window.clearTimeout(handoffTimerRef.current);
+        }
+        handoffTimerRef.current = window.setTimeout(() => {
+          setDepartingSectionId(null);
+          handoffTimerRef.current = null;
+        }, barDurationMilliseconds(session.bpm, session.meter));
+      }
+      playbackRef.current = next;
+      const nextStep = roomSession.timeline[next.stepIndex];
+      activeSectionRef.current =
+        roomSession.sections.find(({ id }) => id === nextStep?.sectionId) ?? null;
+      setLastRoomState(state);
+      if (state.beatAnchorAt) {
+        setGuestBeatSync({
+          anchorAtMs: Date.parse(state.beatAnchorAt),
+          beatIndex: state.beatIndex,
+          squareBeat: state.squareBeat,
+          revision: state.revision,
+        });
+      }
+      setPlayback(next);
+      setHostDisconnected(false);
+    };
+    return subscribeToRoom(
+      roomId,
+      applyRoomState,
+      () => setLoadError("Временная комната завершена или истекла."),
+      setRoomConnected,
+      (connected) => {
+        setHostDisconnected(!connected);
+        if (!connected) {
+          setPlayback((current) => ({ ...current, running: false }));
+        }
+      },
+      () => {
+        setRoomTerminated(true);
+        setRoomConnected(false);
+        setPlayback((current) => ({ ...current, running: false }));
+      },
+    );
+  }, [guestMode, roomId, session]);
+
+  useEffect(() => {
+    if (!guestMode || !playback.running || !session || !guestBeatSync) return;
+    const beatMilliseconds = 60_000 / session.bpm;
+    const section = activeSectionRef.current;
+    const squareBeats = Math.max(
+      1,
+      (section?.bars ?? 1) * beatsPerBar(session.meter),
+    );
+    let timeoutId: number;
+
+    const synchronizePulse = () => {
+      const serverNow = Date.now() + serverClockOffsetRef.current;
+      if (serverNow < guestBeatSync.anchorAtMs) {
+        timeoutId = window.setTimeout(
+          synchronizePulse,
+          Math.max(16, guestBeatSync.anchorAtMs - serverNow),
+        );
+        return;
+      }
+      const position = synchronizedBeatPosition({
+        serverNowMs: serverNow,
+        anchorAtMs: guestBeatSync.anchorAtMs,
+        beatMilliseconds,
+        anchorBeatIndex: guestBeatSync.beatIndex,
+        anchorSquareBeat: guestBeatSync.squareBeat,
+        meter: session.meter,
+        squareBeats,
+      });
+      const { beatIndex, squareBeat } = position;
+      beatIndexRef.current = beatIndex;
+      squareBeatRef.current = squareBeat;
+      triggerBeat(beatIndex);
+
+      timeoutId = window.setTimeout(
+        synchronizePulse,
+        position.millisecondsUntilNextBeat,
+      );
+    };
+
+    synchronizePulse();
+    return () => window.clearTimeout(timeoutId);
+  }, [guestBeatSync, guestMode, playback.running, session, triggerBeat]);
+
+  useEffect(() => {
+    if (
+      !guestMode ||
+      !playback.running ||
+      !lastRoomState ||
+      lastRoomState.phase !== "playing"
+    ) {
+      return;
+    }
+    const anchorAtMs = Date.parse(
+      lastRoomState.beatAnchorAt ?? lastRoomState.updatedAt,
+    );
+    let timeoutId: number;
+
+    const synchronizeTimer = () => {
+      const serverNow = Date.now() + serverClockOffsetRef.current;
+      const elapsedMilliseconds = Math.max(0, serverNow - anchorAtMs);
+      const remainingSeconds = synchronizedRemainingSeconds({
+        remainingAtAnchor: lastRoomState.remainingSeconds,
+        anchorAtMs,
+        serverNowMs: serverNow,
+      });
+      setPlayback((current) => {
+        if (current.stepIndex !== lastRoomState.stepIndex) return current;
+        const next = { ...current, remainingSeconds };
+        playbackRef.current = next;
+        return next;
+      });
+
+      const untilAnchor = anchorAtMs - serverNow;
+      const untilNextSecond =
+        untilAnchor > 0
+          ? untilAnchor
+          : 1_000 - (elapsedMilliseconds % 1_000);
+      timeoutId = window.setTimeout(
+        synchronizeTimer,
+        Math.max(16, untilNextSecond + 4),
+      );
+    };
+
+    synchronizeTimer();
+    return () => window.clearTimeout(timeoutId);
+  }, [guestMode, lastRoomState, playback.running]);
+
+  useEffect(() => {
+    if (!session || !playback.running || guestMode) return;
 
     const intervalMilliseconds = 60_000 / session.bpm;
     let nextBeatAt = performance.now() + intervalMilliseconds;
@@ -389,7 +736,7 @@ export function StageSession() {
 
     scheduleNextBeat();
     return () => window.clearTimeout(timeoutId);
-  }, [playback.running, session, triggerBeat]);
+  }, [guestMode, playback.running, session, triggerBeat]);
 
   useEffect(() => {
     if (!session || playback.stepIndex === previousStepIndexRef.current) return;
@@ -417,7 +764,7 @@ export function StageSession() {
   }, [playback.stepIndex, session]);
 
   useEffect(() => {
-    if (!session || !playback.running) {
+    if (!session || !playback.running || guestMode) {
       return;
     }
 
@@ -452,7 +799,7 @@ export function StageSession() {
     }, 1_000);
 
     return () => window.clearInterval(timer);
-  }, [playback.running, session]);
+  }, [guestMode, playback.running, session]);
 
   useEffect(() => {
     if (!session) {
@@ -465,6 +812,28 @@ export function StageSession() {
       session.sections.find(({ id }) => id === step?.sectionId) ?? null;
     activeMeterRef.current = session.meter;
   }, [playback.stepIndex, session]);
+
+  const hostPhase = playback.completed
+    ? "complete"
+    : playback.running
+      ? "playing"
+      : playback.started
+        ? "paused"
+        : "idle";
+  const hostSnapshotKey = `${hostPhase}:${playback.stepIndex}`;
+
+  useEffect(() => {
+    if (!hostRoom || guestMode) return;
+    if (lastPublishedSnapshotRef.current === hostSnapshotKey) return;
+    lastPublishedSnapshotRef.current = hostSnapshotKey;
+    void publishRoomState(hostRoom.room.roomId, hostRoom.hostToken, {
+      phase: hostPhase,
+      stepIndex: playbackRef.current.stepIndex,
+      remainingSeconds: playbackRef.current.remainingSeconds,
+      beatIndex: beatIndexRef.current,
+      squareBeat: squareBeatRef.current,
+    }).catch(() => setLoadError("Не удалось синхронизировать ведомые экраны."));
+  }, [guestMode, hostPhase, hostRoom, hostSnapshotKey]);
 
   if (!session) {
     return (
@@ -491,16 +860,106 @@ export function StageSession() {
   const departingSection = session.sections.find(
     ({ id }) => id === departingSectionId,
   );
-  const warningActive =
-    playback.running &&
-    Boolean(nextStep) &&
-    playback.remainingSeconds <= currentStep.transitionWarningSeconds;
+  const warningActive = shouldShowNextSectionPreview({
+    running: playback.running,
+    hasNextSection: Boolean(nextStep && nextSection),
+    transitionQueued,
+    remainingSeconds: playback.remainingSeconds,
+    warningSeconds: currentStep.transitionWarningSeconds,
+  });
+  const editorHref = sharedPayload
+    ? `/?${SESSION_QUERY_KEY}=${encodeURIComponent(sharedPayload)}`
+    : "/";
+
+  function openEditor() {
+    if (
+      guestMode &&
+      !window.confirm(
+        "Вы покинете ведомый экран и перестанете получать изменения от ведущего. Открыть настройки?",
+      )
+    ) {
+      return;
+    }
+    router.push(editorHref);
+  }
+
+  async function copyDiagnostics() {
+    const diagnostics = {
+      capturedAt: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+      online: navigator.onLine,
+      roomId,
+      roomConnected,
+      clockRoundTripMs,
+      serverClockOffsetMs: Math.round(serverClockOffsetRef.current),
+      playback,
+      beatPulse,
+      roomState: lastRoomState,
+    };
+    await navigator.clipboard.writeText(JSON.stringify(diagnostics, null, 2));
+    setDiagnosticsCopied(true);
+    window.setTimeout(() => setDiagnosticsCopied(false), 2_000);
+  }
+
+  async function configureNextSession(reuseMusicians: boolean) {
+    if (!hostRoom) {
+      router.push("/");
+      return;
+    }
+    try {
+      await publishRoomState(hostRoom.room.roomId, hostRoom.hostToken, {
+        phase: reuseMusicians ? "waiting" : "terminated",
+        heartbeat: true,
+      });
+      if (!reuseMusicians) clearActiveHostRoom();
+      router.push("/");
+    } catch {
+      setLoadError("Не удалось изменить состояние комнаты.");
+      setExitChoiceOpen(false);
+    }
+  }
 
   if (!currentSection) {
     return null;
   }
 
+  if (guestMode && roomTerminated) {
+    return (
+      <main className="stage-shell flex min-h-screen flex-col items-center justify-center px-6 text-center text-white" data-style={session.styleId}>
+        <p className="text-xs font-bold uppercase tracking-[0.28em] text-[var(--accent)]">Комната закрыта</p>
+        <h1 className="mt-5 text-4xl font-black sm:text-6xl">Ведущий завершил сессию</h1>
+        <p className="mt-4 max-w-xl text-neutral-400">Для следующего джема понадобится новое приглашение.</p>
+      </main>
+    );
+  }
+
+  if (guestMode && hostDisconnected) {
+    return (
+      <main className="stage-shell flex min-h-screen flex-col items-center justify-center px-6 text-center text-white" data-style={session.styleId}>
+        <p className="text-xs font-bold uppercase tracking-[0.28em] text-amber-300">Нет связи с ведущим</p>
+        <h1 className="mt-5 text-4xl font-black sm:text-6xl">Сессия поставлена на паузу</h1>
+        <p className="mt-4 max-w-xl text-neutral-400">Ждём возвращения ведущего до пяти минут. Переподключаться не нужно.</p>
+      </main>
+    );
+  }
+
+  if (guestMode && lastRoomState?.phase === "waiting") {
+    return (
+      <main className="stage-shell flex min-h-screen flex-col items-center justify-center px-6 text-center text-white" data-style={session.styleId}>
+        <p className="text-xs font-bold uppercase tracking-[0.28em] text-[var(--accent-cool)]">Музыканты остаются в комнате</p>
+        <h1 className="mt-5 text-4xl font-black sm:text-6xl">Ведущий готовит следующий джем</h1>
+        <p className="mt-4 max-w-xl text-neutral-400">Новые настройки и аккорды появятся здесь автоматически.</p>
+      </main>
+    );
+  }
+
   function resetPlayback() {
+    if (scheduledStartTimerRef.current !== null) {
+      window.clearTimeout(scheduledStartTimerRef.current);
+      scheduledStartTimerRef.current = null;
+    }
+    setStartScheduling(false);
     previousStepIndexRef.current = 0;
     beatIndexRef.current = 0;
     squareBeatRef.current = 0;
@@ -531,7 +990,8 @@ export function StageSession() {
     });
   }
 
-  function togglePlayback() {
+  async function togglePlayback() {
+    if (startScheduling) return;
     if (!playback.running) {
       if (!playback.started) {
         beatIndexRef.current = 0;
@@ -547,6 +1007,47 @@ export function StageSession() {
         );
         squareBeatRef.current =
           (squareBeatRef.current + 1) % squareBeats;
+      }
+      if (hostRoom) {
+        setStartScheduling(true);
+        const requestStartedAt = performance.now();
+        try {
+          const synchronized = await publishRoomState(
+            hostRoom.room.roomId,
+            hostRoom.hostToken,
+            {
+              phase: "playing",
+              stepIndex: playbackRef.current.stepIndex,
+              remainingSeconds: playbackRef.current.remainingSeconds,
+              beatIndex: beatIndexRef.current,
+              squareBeat: squareBeatRef.current,
+              startLeadMs: 1_500,
+            },
+          );
+          const roundTripMs = performance.now() - requestStartedAt;
+          const serverLeadMs = synchronized.beatAnchorAt
+            ? Date.parse(synchronized.beatAnchorAt) -
+              Date.parse(synchronized.updatedAt)
+            : 0;
+          const localDelayMs = Math.max(0, serverLeadMs - roundTripMs / 2);
+          lastPublishedSnapshotRef.current =
+            `playing:${playbackRef.current.stepIndex}`;
+          scheduledStartTimerRef.current = window.setTimeout(() => {
+            scheduledStartTimerRef.current = null;
+            triggerBeat(beatIndexRef.current);
+            setPlayback((current) => ({
+              ...current,
+              running: true,
+              completed: false,
+              started: true,
+            }));
+            setStartScheduling(false);
+          }, localDelayMs);
+          return;
+        } catch {
+          setLoadError("Не удалось согласовать старт с ведомыми экранами.");
+          setStartScheduling(false);
+        }
       }
       triggerBeat(beatIndexRef.current);
     }
@@ -571,7 +1072,7 @@ export function StageSession() {
 
   if (playback.completed) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-black px-6 py-10 text-center text-white">
+      <main className="stage-shell flex min-h-screen flex-col items-center justify-center px-6 py-10 text-center text-white" data-style={session.styleId}>
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-[var(--accent)]">
           Джем завершён
         </p>
@@ -579,16 +1080,48 @@ export function StageSession() {
           Это было потно. Вы круты.
         </h1>
         <p className="mt-5 text-xl text-neutral-400">Грув засчитан. Соседи тоже участвовали.</p>
+        {guestMode ? (
+          <p className="mt-3 text-sm text-[var(--accent-cool)]">Ведущий завершил сессию.</p>
+        ) : null}
         <div className="mt-10 flex flex-wrap justify-center gap-3">
-          <button
+          {!guestMode ? <button
             className="rounded-full bg-[var(--accent)] px-7 py-3 font-bold text-black"
             onClick={restartPlayback}
             type="button"
           >
             Сыграть ещё раз
-          </button>
-          <RouteLink href="/">Вернуться к настройкам</RouteLink>
+          </button> : null}
+          {guestMode ? (
+            <button
+              className="rounded-full border border-white/15 px-7 py-3 font-bold transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              onClick={openEditor}
+              type="button"
+            >
+              Вернуться к настройкам
+            </button>
+          ) : (
+            <button
+              className="rounded-full bg-[var(--accent)] px-7 py-3 font-bold text-black transition hover:brightness-110 active:scale-95"
+              onClick={() => hostRoom ? setExitChoiceOpen(true) : router.push(editorHref)}
+              type="button"
+            >
+              Вернуться к настройкам
+            </button>
+          )}
         </div>
+        {exitChoiceOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+            <div className="w-full max-w-xl rounded-3xl border border-white/15 bg-[#171714] p-6 text-left shadow-2xl sm:p-8">
+              <h2 className="text-3xl font-black">Кто играет следующий джем?</h2>
+              <p className="mt-3 text-sm leading-6 text-neutral-400">Те же музыканты останутся на ведомых экранах и автоматически получат следующую сессию.</p>
+              <div className="mt-7 grid gap-3">
+                <button className="rounded-2xl bg-[var(--accent)] px-5 py-4 text-left font-black text-black transition hover:brightness-110 active:scale-[0.99]" onClick={() => void configureNextSession(true)} type="button">Продолжить с теми же музыкантами</button>
+                <button className="rounded-2xl border border-white/15 px-5 py-4 text-left font-bold transition hover:border-white/40 active:scale-[0.99]" onClick={() => void configureNextSession(false)} type="button">Создать комнату для новых музыкантов</button>
+                <button className="rounded-full px-5 py-3 text-sm font-bold text-neutral-400 transition hover:text-white" onClick={() => setExitChoiceOpen(false)} type="button">Отмена</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </main>
     );
   }
@@ -601,7 +1134,7 @@ export function StageSession() {
   const totalBeats = beatsPerBar(session.meter);
 
   return (
-    <main className="stage-shell flex h-dvh min-h-0 flex-col overflow-hidden px-3 py-3 text-white sm:px-6 sm:py-4">
+    <main className="stage-shell flex h-dvh min-h-0 flex-col overflow-hidden px-3 py-3 text-white sm:px-6 sm:py-4" data-style={session.styleId}>
       {visualMetronomeMode === "screen" &&
       playback.running &&
       beatPulse.sequence ? (
@@ -616,6 +1149,7 @@ export function StageSession() {
         <div className="min-w-0">
           <p className="truncate text-[0.65rem] font-bold uppercase tracking-[0.22em] text-[var(--accent)] sm:text-xs sm:tracking-[0.28em]">
             {styleDescriptor(session.styleId).name} · {session.bpm} BPM · {session.meter}
+            {guestMode ? ` · Ведомый экран · ${roomConnected ? "онлайн" : "подключение…"}` : ""}
           </p>
           <div className="mt-1 flex items-baseline gap-3 sm:mt-2">
             <h1 className="shrink-0 text-2xl font-black sm:text-4xl">
@@ -657,7 +1191,7 @@ export function StageSession() {
                 ))}
               </div>
             )}
-            <label className="flex items-center gap-2 text-xs font-semibold text-neutral-400">
+            {!guestMode ? <label className="flex items-center gap-2 text-xs font-semibold text-neutral-400">
               <span aria-hidden="true">🔊</span>
               <input
                 aria-label="Громкость метронома"
@@ -674,7 +1208,7 @@ export function StageSession() {
               <span className="hidden w-8 text-right sm:inline">
                 {Math.round(metronomeVolume * 100)}%
               </span>
-            </label>
+            </label> : null}
           </div>
           <div className="text-right">
             <p
@@ -744,21 +1278,25 @@ export function StageSession() {
         ) : null}
       </div>
 
-      <footer className="relative z-10 mt-3 flex flex-none items-center justify-between gap-3 sm:mt-4">
-        <div className="flex min-w-0 gap-2 sm:gap-3">
+      <footer className="stage-footer relative z-10 mt-3 flex flex-none flex-col gap-2 sm:mt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        {!guestMode ? <div className="stage-footer-controls grid min-w-0 grid-cols-3 gap-2 sm:flex sm:gap-3">
           <button
-            className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-black sm:px-6 sm:py-3"
-            onClick={togglePlayback}
+            className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-black transition active:scale-95 disabled:cursor-wait disabled:opacity-65 sm:px-6 sm:py-3"
+            disabled={startScheduling}
+            onClick={() => void togglePlayback()}
             type="button"
           >
-            {playback.running
+            {startScheduling
+              ? "Синхронизация…"
+              : playback.running
               ? "Пауза"
               : playback.started
                 ? "Продолжить"
                 : "Старт"}
           </button>
           <button
-            className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold sm:px-5 sm:py-3"
+            className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold disabled:cursor-wait disabled:opacity-50 sm:px-5 sm:py-3"
+            disabled={startScheduling}
             onClick={resetPlayback}
             type="button"
           >
@@ -785,7 +1323,7 @@ export function StageSession() {
           </button>
           <button
             className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold disabled:cursor-wait disabled:border-[var(--accent)]/40 disabled:text-[var(--accent)] sm:px-5 sm:py-3"
-            disabled={transitionQueued}
+            disabled={transitionQueued || startScheduling}
             onClick={moveToNextStep}
             type="button"
           >
@@ -800,14 +1338,63 @@ export function StageSession() {
                   : "Завершить"}
             </span>
           </button>
-        </div>
-        <div className="flex shrink-0 items-center gap-2 text-xs text-neutral-500 sm:gap-4 sm:text-sm">
+          <LiveRoomPanel onCreated={setHostRoom} session={session} />
+        </div> : (
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="rounded-full border border-[var(--accent-cool)]/35 px-4 py-2 text-sm font-semibold text-[var(--accent-cool)]">
+              Управление у ведущего
+            </div>
+            <button
+              aria-label={
+                `Режим света: ${visualMetronomeModeLabel[visualMetronomeMode]}. ` +
+                `Переключить на ${visualMetronomeModeLabel[nextVisualMetronomeMode(visualMetronomeMode)]}`
+              }
+              className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] active:scale-95"
+              data-testid="guest-visual-metronome-mode-toggle"
+              onClick={() => setVisualMetronomeMode(nextVisualMetronomeMode)}
+              type="button"
+            >
+              Свет: {visualMetronomeModeLabel[visualMetronomeMode]}
+            </button>
+          </div>
+        )}
+        <div className="flex shrink-0 items-center justify-end gap-2 text-xs text-neutral-500 sm:gap-4 sm:text-sm">
           <span className="hidden sm:inline">
             Тема {currentSection.label} · далее {nextSection ? `тема ${nextSection.label}` : "финал"}
           </span>
-          <RouteLink href="/">Настройки</RouteLink>
+          <StylePerformanceGuide
+            className="rounded-full border border-white/15 px-3 py-2 font-bold text-white transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] active:scale-95 sm:px-4"
+            compact
+            styleId={session.styleId}
+          />
+          {guestMode ? (
+            <button
+              className="rounded-full bg-[var(--accent)] px-4 py-2 font-bold text-black transition hover:brightness-110 active:scale-95"
+              onClick={openEditor}
+              type="button"
+            >
+              Настройки
+            </button>
+          ) : (
+            <RouteLink href={editorHref}>Настройки</RouteLink>
+          )}
         </div>
       </footer>
+      {guestMode && debugEnabled ? (
+        <aside className="fixed bottom-20 right-3 z-50 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-[var(--accent-cool)]/35 bg-black/90 p-3 text-xs shadow-2xl backdrop-blur sm:bottom-24 sm:right-6">
+          <p className="font-bold text-[var(--accent-cool)]">Диагностика ведомого экрана</p>
+          <p className="mt-1 text-neutral-400">
+            SSE: {roomConnected ? "онлайн" : "нет связи"} · RTT: {clockRoundTripMs === null ? "—" : `${clockRoundTripMs} мс`} · rev: {lastRoomState?.revision ?? "—"}
+          </p>
+          <button
+            className="mt-2 rounded-full border border-white/20 px-3 py-1.5 font-bold transition hover:border-white active:scale-95"
+            onClick={() => void copyDiagnostics()}
+            type="button"
+          >
+            {diagnosticsCopied ? "Скопировано" : "Скопировать диагностику"}
+          </button>
+        </aside>
+      ) : null}
     </main>
   );
 }

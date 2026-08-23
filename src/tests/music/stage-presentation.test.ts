@@ -6,6 +6,9 @@ import {
   formatStageDuration,
   nextBeatIndex,
   nextSquareBeatIndex,
+  shouldShowNextSectionPreview,
+  synchronizedBeatPosition,
+  synchronizedRemainingSeconds,
 } from "@/lib/music/stage/presentation";
 
 describe("Stage presentation", () => {
@@ -73,5 +76,51 @@ describe("Stage presentation", () => {
     expect(chordIdAtBeat(chords, 2, "4/4", 2)).toBe("second-half");
     expect(chordIdAtBeat(chords, 4, "4/4", 2)).toBe("second-bar");
     expect(chordIdAtBeat(chords, 8, "4/4", 2)).toBe("first-half");
+  });
+
+  it("restores the current beat after a delayed room event", () => {
+    expect(synchronizedBeatPosition({
+      serverNowMs: 2_250,
+      anchorAtMs: 1_000,
+      beatMilliseconds: 500,
+      anchorBeatIndex: 0,
+      anchorSquareBeat: 0,
+      meter: "4/4",
+      squareBeats: 16,
+    })).toEqual({
+      beatIndex: 2,
+      squareBeat: 2,
+      millisecondsUntilNextBeat: 250,
+    });
+  });
+
+  it("anchors a guest timer to the scheduled start instead of the update time", () => {
+    expect(synchronizedRemainingSeconds({
+      remainingAtAnchor: 70,
+      anchorAtMs: Date.parse("2026-08-23T15:01:19.355Z"),
+      serverNowMs: Date.parse("2026-08-23T15:01:45.536Z"),
+    })).toBeCloseTo(43.819, 3);
+    expect(synchronizedRemainingSeconds({
+      remainingAtAnchor: 70,
+      anchorAtMs: 2_000,
+      serverNowMs: 1_500,
+    })).toBe(70);
+  });
+
+  it("shows the next section immediately after a manual transition is queued", () => {
+    expect(shouldShowNextSectionPreview({
+      running: true,
+      hasNextSection: true,
+      transitionQueued: true,
+      remainingSeconds: 90,
+      warningSeconds: 10,
+    })).toBe(true);
+    expect(shouldShowNextSectionPreview({
+      running: true,
+      hasNextSection: true,
+      transitionQueued: false,
+      remainingSeconds: 90,
+      warningSeconds: 10,
+    })).toBe(false);
   });
 });

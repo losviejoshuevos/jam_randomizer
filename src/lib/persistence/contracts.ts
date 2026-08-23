@@ -6,13 +6,14 @@ import type {
   ThemeId,
 } from "../music/domain/types";
 
-export const CURRENT_SCHEMA_VERSION = 2;
-export const MAX_RECENT_SESSIONS = 10;
+export const CURRENT_SCHEMA_VERSION = 3;
+export const MAX_RECENT_SESSIONS = 30;
 
 export interface PersistedJamState {
   schemaVersion: number;
   currentSession: JamSession | null;
   recentSessions: JamSession[];
+  favoriteSessions: JamSession[];
   latestSettings: GenerationSettings | null;
   appliedTimingSettings?: GenerationSettings | null;
   latestSectionSettings?: Partial<Record<SectionLabel, SectionHarmonySettings>> | null;
