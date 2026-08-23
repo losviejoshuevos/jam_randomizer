@@ -67,6 +67,18 @@ export async function updateRoom(
     typeof patch.startLeadMs === "number"
       ? Math.min(3_000, Math.max(0, Math.round(patch.startLeadMs)))
       : 0;
+  const requestedBeatAnchorAtMs =
+    typeof patch.beatAnchorAtMs === "number" &&
+    Number.isFinite(patch.beatAnchorAtMs)
+      ? Math.round(patch.beatAnchorAtMs)
+      : null;
+  const beatAnchorAtMs =
+    requestedBeatAnchorAtMs === null
+      ? now.getTime() + startLeadMs
+      : Math.min(
+          now.getTime() + 3_000,
+          Math.max(now.getTime() - 5_000, requestedBeatAnchorAtMs),
+        );
   const next: StoredRoom = {
     ...current,
     ...(typeof patch.sessionId === "string" ? { sessionId: patch.sessionId } : {}),
@@ -87,7 +99,7 @@ export async function updateRoom(
       ? { squareBeat: Math.max(0, Math.floor(patch.squareBeat)) }
       : {}),
     ...(hasBeatAnchor
-      ? { beatAnchorAt: new Date(now.getTime() + startLeadMs).toISOString() }
+      ? { beatAnchorAt: new Date(beatAnchorAtMs).toISOString() }
       : {}),
     hostSeenAt: now.toISOString(),
     revision: current.revision + 1,

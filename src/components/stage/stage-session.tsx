@@ -56,7 +56,6 @@ interface GuestBeatSync {
   anchorAtMs: number;
   beatIndex: number;
   squareBeat: number;
-  revision: number;
 }
 
 type VisualMetronomeMode = "chord" | "indicator" | "screen";
@@ -307,7 +306,10 @@ export function StageSession() {
   const playbackRef = useRef(playback);
   const lastPublishedSnapshotRef = useRef<string | null>(null);
   const serverClockOffsetRef = useRef(0);
+  const serverClockSynchronizedRef = useRef(false);
   const scheduledStartTimerRef = useRef<number | null>(null);
+  const pendingBeatAnchorAtMsRef = useRef<number | null>(null);
+  const lastObservedRoomBeatAnchorRef = useRef<string | null>(null);
 
   useEffect(() => {
     playbackRef.current = playback;
@@ -489,12 +491,14 @@ export function StageSession() {
   }, []);
 
   useEffect(() => {
-    if (!guestMode || !roomId) return;
+    const hasLiveRoom = guestMode ? Boolean(roomId) : Boolean(hostRoom);
+    if (!hasLiveRoom) return;
     let cancelled = false;
     const synchronize = () => {
       void measureServerClock().then((clock) => {
         if (cancelled) return;
         serverClockOffsetRef.current = clock.offsetMs;
+        serverClockSynchronizedRef.current = true;
         setClockRoundTripMs(clock.roundTripMs);
       }).catch(() => {
         // The room can still work with the device clock if the probe fails.
@@ -506,7 +510,7 @@ export function StageSession() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [guestMode, roomId]);
+  }, [guestMode, hostRoom, roomId]);
 
   useEffect(() => {
     if (!guestMode || roomConnected || roomTerminated) return;
@@ -521,7 +525,8 @@ export function StageSession() {
     if (!guestMode || !roomId || !session) return;
     const applyRoomState = (state: PublicRoomState) => {
       let roomSession = session;
-      if (state.sessionId !== session.id) {
+      const sessionChanged = state.sessionId !== session.id;
+      if (sessionChanged) {
         try {
           roomSession = decodeSessionPayload(state.sessionPayload);
           setSession(roomSession);
@@ -549,8 +554,10 @@ export function StageSession() {
         completed: state.phase === "complete",
         started: state.phase !== "idle",
       };
-      if (next.stepIndex !== playbackRef.current.stepIndex) {
-        const previousStep = session.timeline[playbackRef.current.stepIndex];
+      const previousPlayback = playbackRef.current;
+      const stepChanged = next.stepIndex !== previousPlayback.stepIndex;
+      if (stepChanged) {
+        const previousStep = session.timeline[previousPlayback.stepIndex];
         previousStepIndexRef.current = next.stepIndex;
         setDepartingSectionId(previousStep?.sectionId ?? null);
         if (handoffTimerRef.current !== null) {
@@ -567,12 +574,34 @@ export function StageSession() {
         roomSession.sections.find(({ id }) => id === nextStep?.sectionId) ?? null;
       setLastRoomState(state);
       if (state.beatAnchorAt) {
-        setGuestBeatSync({
-          anchorAtMs: Date.parse(state.beatAnchorAt),
-          beatIndex: state.beatIndex,
-          squareBeat: state.squareBeat,
-          revision: state.revision,
-        });
+        const anchorChanged =
+          lastObservedRoomBeatAnchorRef.current !== state.beatAnchorAt;
+        lastObservedRoomBeatAnchorRef.current = state.beatAnchorAt;
+
+        // A section handoff stays on the same uninterrupted beat grid. Keep
+        // that grid running instead of replaying its first beat when the SSE
+        // transition snapshot reaches the guest.
+        const keepContinuousGrid =
+          anchorChanged &&
+          stepChanged &&
+          !sessionChanged &&
+          previousPlayback.running &&
+          state.phase === "playing";
+        if (anchorChanged && !keepContinuousGrid) {
+          const nextSync = {
+            anchorAtMs: Date.parse(state.beatAnchorAt),
+            beatIndex: state.beatIndex,
+            squareBeat: state.squareBeat,
+          };
+          setGuestBeatSync((current) =>
+            current &&
+            current.anchorAtMs === nextSync.anchorAtMs &&
+            current.beatIndex === nextSync.beatIndex &&
+            current.squareBeat === nextSync.squareBeat
+              ? current
+              : nextSync,
+          );
+        }
       }
       setPlayback(next);
       setHostDisconnected(false);
@@ -599,11 +628,6 @@ export function StageSession() {
   useEffect(() => {
     if (!guestMode || !playback.running || !session || !guestBeatSync) return;
     const beatMilliseconds = 60_000 / session.bpm;
-    const section = activeSectionRef.current;
-    const squareBeats = Math.max(
-      1,
-      (section?.bars ?? 1) * beatsPerBar(session.meter),
-    );
     let timeoutId: number;
 
     const synchronizePulse = () => {
@@ -615,6 +639,11 @@ export function StageSession() {
         );
         return;
       }
+      const section = activeSectionRef.current;
+      const squareBeats = Math.max(
+        1,
+        (section?.bars ?? 1) * beatsPerBar(session.meter),
+      );
       const position = synchronizedBeatPosition({
         serverNowMs: serverNow,
         anchorAtMs: guestBeatSync.anchorAtMs,
@@ -722,6 +751,10 @@ export function StageSession() {
           activeSectionRef.current =
             session.sections.find(({ id }) => id === nextStep?.sectionId) ??
             null;
+          pendingBeatAnchorAtMsRef.current =
+            serverClockSynchronizedRef.current
+              ? Date.now() + serverClockOffsetRef.current
+              : null;
           triggerBeat(0);
           nextBeatAt += intervalMilliseconds;
           scheduleNextBeat();
@@ -826,12 +859,15 @@ export function StageSession() {
     if (!hostRoom || guestMode) return;
     if (lastPublishedSnapshotRef.current === hostSnapshotKey) return;
     lastPublishedSnapshotRef.current = hostSnapshotKey;
+    const beatAnchorAtMs = pendingBeatAnchorAtMsRef.current;
+    pendingBeatAnchorAtMsRef.current = null;
     void publishRoomState(hostRoom.room.roomId, hostRoom.hostToken, {
       phase: hostPhase,
       stepIndex: playbackRef.current.stepIndex,
       remainingSeconds: playbackRef.current.remainingSeconds,
       beatIndex: beatIndexRef.current,
       squareBeat: squareBeatRef.current,
+      ...(beatAnchorAtMs === null ? {} : { beatAnchorAtMs }),
     }).catch(() => setLoadError("Не удалось синхронизировать ведомые экраны."));
   }, [guestMode, hostPhase, hostRoom, hostSnapshotKey]);
 
@@ -1132,6 +1168,17 @@ export function StageSession() {
       ? "warning"
       : "steady";
   const totalBeats = beatsPerBar(session.meter);
+  const stageStatus = startScheduling
+    ? "Синхронизация"
+    : transitionQueued
+      ? "Переход после квадрата"
+      : warningActive
+        ? "Скоро следующая тема"
+        : playback.running
+          ? `Играем тему ${currentSection.label}`
+          : playback.started
+            ? "Пауза"
+            : "Готово к старту";
 
   return (
     <main className="stage-shell flex h-dvh min-h-0 flex-col overflow-hidden px-3 py-3 text-white sm:px-6 sm:py-4" data-style={session.styleId}>
@@ -1150,6 +1197,9 @@ export function StageSession() {
           <p className="truncate text-[0.65rem] font-bold uppercase tracking-[0.22em] text-[var(--accent)] sm:text-xs sm:tracking-[0.28em]">
             {styleDescriptor(session.styleId).name} · {session.bpm} BPM · {session.meter}
             {guestMode ? ` · Ведомый экран · ${roomConnected ? "онлайн" : "подключение…"}` : ""}
+            <span className="text-[var(--accent-cool)]" data-testid="stage-status">
+              {` · ${stageStatus}`}
+            </span>
           </p>
           <div className="mt-1 flex items-baseline gap-3 sm:mt-2">
             <h1 className="shrink-0 text-2xl font-black sm:text-4xl">
@@ -1304,7 +1354,7 @@ export function StageSession() {
           </button>
           <button
             aria-label={
-              `Режим света: ${visualMetronomeModeLabel[visualMetronomeMode]}. ` +
+              `Световой метроном: ${visualMetronomeModeLabel[visualMetronomeMode]}. ` +
               `Переключить на ${visualMetronomeModeLabel[nextVisualMetronomeMode(visualMetronomeMode)]}`
             }
             className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] sm:px-5 sm:py-3"
@@ -1314,12 +1364,7 @@ export function StageSession() {
             }
             type="button"
           >
-            <span className="sm:hidden">
-              Свет: {visualMetronomeMode === "indicator" ? "точка" : visualMetronomeModeLabel[visualMetronomeMode]}
-            </span>
-            <span className="hidden sm:inline">
-              Свет: {visualMetronomeModeLabel[visualMetronomeMode]}
-            </span>
+            Метроном: {visualMetronomeModeLabel[visualMetronomeMode]}
           </button>
           <button
             className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold disabled:cursor-wait disabled:border-[var(--accent)]/40 disabled:text-[var(--accent)] sm:px-5 sm:py-3"
@@ -1346,7 +1391,7 @@ export function StageSession() {
             </div>
             <button
               aria-label={
-                `Режим света: ${visualMetronomeModeLabel[visualMetronomeMode]}. ` +
+                `Световой метроном: ${visualMetronomeModeLabel[visualMetronomeMode]}. ` +
                 `Переключить на ${visualMetronomeModeLabel[nextVisualMetronomeMode(visualMetronomeMode)]}`
               }
               className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] active:scale-95"
@@ -1354,14 +1399,11 @@ export function StageSession() {
               onClick={() => setVisualMetronomeMode(nextVisualMetronomeMode)}
               type="button"
             >
-              Свет: {visualMetronomeModeLabel[visualMetronomeMode]}
+              Метроном: {visualMetronomeModeLabel[visualMetronomeMode]}
             </button>
           </div>
         )}
         <div className="flex shrink-0 items-center justify-end gap-2 text-xs text-neutral-500 sm:gap-4 sm:text-sm">
-          <span className="hidden sm:inline">
-            Тема {currentSection.label} · далее {nextSection ? `тема ${nextSection.label}` : "финал"}
-          </span>
           <StylePerformanceGuide
             className="rounded-full border border-white/15 px-3 py-2 font-bold text-white transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] active:scale-95 sm:px-4"
             compact
