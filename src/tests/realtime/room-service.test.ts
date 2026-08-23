@@ -63,6 +63,42 @@ describe("temporary room service", () => {
     });
   });
 
+  it("accepts the host beat timestamp for a section handoff", async () => {
+    const created = await createRoom("session-one", 120, "payload-one");
+    const anchorAtMs = Date.now() - 120;
+    const updated = await updateRoom(created.room.roomId, created.hostToken, {
+      phase: "playing",
+      stepIndex: 1,
+      remainingSeconds: 90,
+      beatIndex: 0,
+      squareBeat: 0,
+      beatAnchorAtMs: anchorAtMs,
+    });
+
+    expect(
+      updated && updated !== "forbidden" && updated.beatAnchorAt
+        ? Date.parse(updated.beatAnchorAt)
+        : null,
+    ).toBe(anchorAtMs);
+  });
+
+  it("pushes room changes to subscribers without polling", async () => {
+    const created = await createRoom("session-one", 120, "payload-one");
+    const received: Array<string | null> = [];
+    const store = roomStore();
+    const unsubscribe = store.subscribe(created.room.roomId, (room) => {
+      received.push(room?.phase ?? null);
+    });
+
+    await updateRoom(created.room.roomId, created.hostToken, {
+      phase: "playing",
+    });
+    await store.delete(created.room.roomId);
+    unsubscribe();
+
+    expect(received).toEqual(["playing", null]);
+  });
+
   it("shortens a terminated room lifetime", async () => {
     const created = await createRoom("session-one", 120, "payload-one");
     const terminated = await updateRoom(created.room.roomId, created.hostToken, {

@@ -35,6 +35,7 @@ export interface RoomStatePatch {
   beatIndex?: number;
   squareBeat?: number;
   startLeadMs?: number;
+  beatAnchorAtMs?: number;
   heartbeat?: boolean;
 }
 

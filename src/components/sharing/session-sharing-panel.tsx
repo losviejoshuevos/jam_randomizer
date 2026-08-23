@@ -1,7 +1,6 @@
 "use client";
 
-import QRCode from "qrcode";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { JamSession } from "@/lib/music/domain/types";
 import {
   parseSessionFile,
@@ -19,41 +18,11 @@ type Feedback = { tone: "ok" | "error"; text: string } | null;
 
 export function SessionSharingPanel({ session, onImport }: SessionSharingPanelProps) {
   const [feedback, setFeedback] = useState<Feedback>(null);
-  const [showQr, setShowQr] = useState(false);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function shareUrl() {
     return createSessionUrl(session, window.location.origin);
   }
-
-  useEffect(() => {
-    if (!showQr) return;
-    let cancelled = false;
-    void QRCode.toDataURL(
-      createSessionUrl(session, window.location.origin),
-      {
-      errorCorrectionLevel: "M",
-      margin: 1,
-      width: 320,
-      },
-    )
-      .then((url) => {
-        if (!cancelled) setQrDataUrl(url);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setQrDataUrl(null);
-          setFeedback({
-            tone: "error",
-            text: "Сессия слишком велика для QR. Используйте ссылку или файл.",
-          });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [session, showQr]);
 
   async function copyLink() {
     try {
@@ -123,19 +92,18 @@ export function SessionSharingPanel({ session, onImport }: SessionSharingPanelPr
   return (
     <section className="history-panel mt-8 rounded-3xl border border-white/10 p-5 sm:p-6">
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--accent)]">Сохранить и поделиться</p>
-        <h2 className="mt-2 text-2xl font-black">Эта сессия помещается в ссылку</h2>
+        <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--accent)]">Сохранить или отправить</p>
+        <h2 className="mt-2 text-2xl font-black">Сохраните удачный джем</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-400">
           Ссылка и файл содержат аккорды, форму и настройки целиком. Для их открытия база данных не нужна.
         </p>
       </div>
       <div className="mt-5 flex flex-wrap gap-2">
         <button className={buttonClass} onClick={copyLink} type="button">Скопировать ссылку</button>
-        <button className={buttonClass} onClick={systemShare} type="button">Поделиться</button>
-        <button className={buttonClass} onClick={telegramShare} type="button">Telegram</button>
-        <button className={buttonClass} onClick={() => setShowQr((value) => !value)} type="button">QR-код</button>
-        <button className={buttonClass} onClick={downloadFile} type="button">Сохранить файл</button>
-        <button className={buttonClass} onClick={() => inputRef.current?.click()} type="button">Открыть файл</button>
+        <button className={buttonClass} onClick={systemShare} type="button">Отправить сессию</button>
+        <button className={buttonClass} onClick={telegramShare} type="button">Отправить в Telegram</button>
+        <button className={buttonClass} onClick={downloadFile} type="button">Сохранить себе</button>
+        <button className={buttonClass} onClick={() => inputRef.current?.click()} type="button">Открыть сохранённую</button>
         <input
           accept=".json,.jam.json,application/json"
           className="sr-only"
@@ -148,20 +116,6 @@ export function SessionSharingPanel({ session, onImport }: SessionSharingPanelPr
         <p className={`mt-4 text-sm ${feedback.tone === "error" ? "text-red-300" : "text-[var(--accent)]"}`}>
           {feedback.text}
         </p>
-      ) : null}
-      {showQr ? (
-        <div className="mt-5 flex flex-col items-start gap-3 rounded-2xl border border-white/10 bg-black/30 p-4 sm:flex-row sm:items-center">
-          {qrDataUrl ? (
-            // Generated from the current session; no remote image host is involved.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img alt="QR-код сессии" className="h-48 w-48 rounded-xl bg-white p-2" src={qrDataUrl} />
-          ) : (
-            <div className="flex h-48 w-48 items-center justify-center rounded-xl bg-white/5 text-sm text-neutral-500">Создаю QR…</div>
-          )}
-          <p className="max-w-md text-sm leading-6 text-neutral-400">
-            Это статичная переносимая сессия. Для автоматической смены тем на других устройствах создайте живую комнату в Stage Mode.
-          </p>
-        </div>
       ) : null}
     </section>
   );

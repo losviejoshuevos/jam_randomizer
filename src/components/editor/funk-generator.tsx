@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   STYLE_OPTIONS,
   resolveStyleProfile,
@@ -63,6 +64,8 @@ import {
 import { loadActiveHostRoom } from "@/lib/realtime/active-host-room";
 import { publishRoomState } from "@/lib/realtime/room-client";
 import { StylePerformanceGuide } from "@/components/style/style-performance-guide";
+import { QuickStartGuide } from "@/components/onboarding/quick-start-guide";
+import { FieldHelp } from "@/components/ui/field-help";
 
 const KEYS: PitchClass[] = [
   "C",
@@ -1724,7 +1727,7 @@ export function FunkGenerator() {
 
   return (
     <main className="editor-shell mx-auto min-h-screen max-w-[1680px] px-5 py-8 !pb-28 sm:px-8 sm:!pb-28 lg:py-12">
-      <header className="mb-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+      <header className="mb-10 grid items-center gap-5 lg:grid-cols-[1fr_auto_1fr]">
         <div>
           <h1 className="text-4xl font-black tracking-tight sm:text-6xl">
             Jam Randomizer
@@ -1734,7 +1737,15 @@ export function FunkGenerator() {
             код понравившегося варианта.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <Link
+          className="wheel-entry-button inline-flex w-full items-center justify-center gap-3 justify-self-center rounded-2xl px-8 py-4 text-base font-black text-black transition active:scale-[0.98] sm:w-auto sm:min-w-[340px]"
+          href="/wheel"
+        >
+          <span aria-hidden="true" className="text-xl">✦</span>
+          Запустить колесо рандома
+        </Link>
+        <div className="flex flex-wrap items-center gap-3 lg:justify-self-end">
+          <QuickStartGuide />
           <StylePerformanceGuide
             className="rounded-full border border-white/15 px-5 py-3 text-sm font-bold text-white transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] active:scale-95"
             styleId={settings.styleId}
@@ -1813,10 +1824,16 @@ export function FunkGenerator() {
               </select>
             </label>
 
-            <label className="text-sm text-[var(--muted)]">
-              Сложность аккордов
+            <div className="text-sm text-[var(--muted)]">
+              <div className="flex items-center">
+                <label htmlFor="chord-complexity">Сложность аккордов</label>
+                <FieldHelp label="Сложность аккордов">
+                  Определяет строение аккордов: от обычных трезвучий до аккордов с септимами, 9, 11 и 13 ступенями. Сами гармонические переходы эта настройка не меняет.
+                </FieldHelp>
+              </div>
               <select
                 className={FIELD_CLASS}
+                id="chord-complexity"
                 onChange={(event) =>
                   updateActiveHarmonySettings({
                     complexity: event.target.value as Complexity,
@@ -1831,12 +1848,18 @@ export function FunkGenerator() {
                 <option value="medium">Средние</option>
                 <option value="advanced">Сложные</option>
               </select>
-            </label>
+            </div>
 
-            <label className="col-span-2 text-sm text-[var(--muted)] lg:col-span-1">
-              Гармоническая свобода
+            <div className="col-span-2 text-sm text-[var(--muted)] lg:col-span-1">
+              <div className="flex items-center">
+                <label htmlFor="harmonic-freedom">Гармоническая свобода</label>
+                <FieldHelp label="Гармоническая свобода">
+                  Определяет выбор гармонии: только знакомые аккорды тональности, редкие заимствования или более смелые переходы в соседние тональности.
+                </FieldHelp>
+              </div>
               <select
                 className={FIELD_CLASS}
+                id="harmonic-freedom"
                 onChange={(event) =>
                   updateActiveHarmonySettings({
                     harmonicFreedom: event.target.value as HarmonicFreedom,
@@ -1851,7 +1874,7 @@ export function FunkGenerator() {
                 <option value="colorful">С гармоническими красками</option>
                 <option value="adventurous">Свободная гармония</option>
               </select>
-            </label>
+            </div>
           </fieldset>
           {!activeThemeFocused ? (
             <p className="mt-3 text-xs text-neutral-500">
@@ -1906,7 +1929,13 @@ export function FunkGenerator() {
             </label>
 
             <fieldset className="col-span-2 lg:col-span-1">
-              <legend className="text-sm text-[var(--muted)]">Форма сессии</legend>
+              <legend className="sr-only">Форма сессии</legend>
+              <div className="flex items-center text-sm text-[var(--muted)]">
+                <span>Форма сессии</span>
+                <FieldHelp label="Форма сессии">
+                  Задаёт порядок тем во время джема. Например, ABA означает: основная тема, развитие и возвращение к основной теме.
+                </FieldHelp>
+              </div>
               <select
                 aria-label="Форма сессии"
                 className={FIELD_CLASS}

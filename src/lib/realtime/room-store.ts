@@ -8,6 +8,11 @@ export interface RoomStore {
   get(roomId: string): Promise<StoredRoom | null>;
   set(room: StoredRoom): Promise<void>;
   delete(roomId: string): Promise<void>;
+  subscribe(
+    roomId: string,
+    onRoom: (room: StoredRoom | null) => void,
+    onError?: (error: Error) => void,
+  ): () => void;
 }
 
 export class RoomStoreConfigurationError extends Error {
@@ -19,11 +24,28 @@ export class RoomStoreConfigurationError extends Error {
 
 declare global {
   var __jamRandomizerRooms: Map<string, StoredRoom> | undefined;
+  var __jamRandomizerRoomListeners:
+    | Map<string, Set<(room: StoredRoom | null) => void>>
+    | undefined;
 }
 
 function memoryRooms(): Map<string, StoredRoom> {
   globalThis.__jamRandomizerRooms ??= new Map<string, StoredRoom>();
   return globalThis.__jamRandomizerRooms;
+}
+
+function memoryRoomListeners(): Map<
+  string,
+  Set<(room: StoredRoom | null) => void>
+> {
+  globalThis.__jamRandomizerRoomListeners ??= new Map();
+  return globalThis.__jamRandomizerRoomListeners;
+}
+
+function notifyMemoryRoom(roomId: string, room: StoredRoom | null): void {
+  for (const listener of memoryRoomListeners().get(roomId) ?? []) {
+    listener(room);
+  }
 }
 
 const memoryStore: RoomStore = {
@@ -38,9 +60,21 @@ const memoryStore: RoomStore = {
   },
   async set(room) {
     memoryRooms().set(room.roomId, room);
+    notifyMemoryRoom(room.roomId, room);
   },
   async delete(roomId) {
     memoryRooms().delete(roomId);
+    notifyMemoryRoom(roomId, null);
+  },
+  subscribe(roomId, onRoom) {
+    const listeners = memoryRoomListeners();
+    const roomListeners = listeners.get(roomId) ?? new Set();
+    roomListeners.add(onRoom);
+    listeners.set(roomId, roomListeners);
+    return () => {
+      roomListeners.delete(onRoom);
+      if (roomListeners.size === 0) listeners.delete(roomId);
+    };
   },
 };
 
@@ -54,20 +88,48 @@ function redisCredentials() {
 
 function createRedisStore(url: string, token: string): RoomStore {
   const redis = new Redis({ url, token });
+  const roomKey = (roomId: string) => `jam-room:${roomId}`;
+  const roomChannel = (roomId: string) => `jam-room-events:${roomId}`;
   return {
     kind: "upstash",
     async get(roomId) {
-      return (await redis.get<StoredRoom>(`jam-room:${roomId}`)) ?? null;
+      return (await redis.get<StoredRoom>(roomKey(roomId))) ?? null;
     },
     async set(room) {
       const ttl = Math.max(
         1,
         Math.ceil((Date.parse(room.expiresAt) - Date.now()) / 1000),
       );
-      await redis.set(`jam-room:${room.roomId}`, room, { ex: ttl });
+      await redis
+        .pipeline()
+        .set(roomKey(room.roomId), room, { ex: ttl })
+        .publish(roomChannel(room.roomId), { type: "state", room })
+        .exec();
     },
     async delete(roomId) {
-      await redis.del(`jam-room:${roomId}`);
+      await redis
+        .pipeline()
+        .del(roomKey(roomId))
+        .publish(roomChannel(roomId), { type: "deleted" })
+        .exec();
+    },
+    subscribe(roomId, onRoom, onError) {
+      type RoomEvent =
+        | { type: "state"; room: StoredRoom }
+        | { type: "deleted" };
+      const subscriber = redis.subscribe<RoomEvent>(roomChannel(roomId));
+      subscriber.on("message", ({ message }) => {
+        if (message?.type === "state" && message.room) {
+          onRoom(message.room);
+        } else if (message?.type === "deleted") {
+          onRoom(null);
+        }
+      });
+      subscriber.on("error", (error) => onError?.(error));
+      return () => {
+        subscriber.removeAllListeners();
+        void subscriber.unsubscribe();
+      };
     },
   };
 }
@@ -96,4 +158,5 @@ export function roomTtlSeconds(): number {
 export function resetRoomStoreForTests(): void {
   cachedStore = null;
   memoryRooms().clear();
+  memoryRoomListeners().clear();
 }
