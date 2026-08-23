@@ -2,6 +2,8 @@ import type { GenerationSettings, JamSession, TimelineStep } from "../domain/typ
 import { deriveSeed } from "../random";
 import { resolveBpm } from "../tempo/resolve-bpm";
 import { calculateTransitionWarningSeconds } from "../tempo/transition-timing";
+import { resolveSectionDurationSeconds } from "../tempo/section-duration";
+import { limitSessionHarmonicSpice } from "../harmony/limit-session-spice";
 import type { GenerateSessionRequest, GenerationResult } from "./contracts";
 import { generateSectionA } from "./generate-section-a";
 import { generateSectionB } from "./generate-section-b";
@@ -25,49 +27,87 @@ export function generateSession(
   request: GenerateSessionRequest,
 ): GenerationResult<JamSession> {
   const { seed, settings, styleProfile } = request;
-  const bpm = resolveBpm(settings.bpm, styleProfile.bpmRange, seed);
+  const bpm = resolveBpm(
+    settings.bpm,
+    styleProfile.bpmRange,
+    seed,
+    styleProfile.bpmRanges,
+  );
   const resolvedSettings: GenerationSettings = { ...settings, bpm };
+  const sectionASettings: GenerationSettings = {
+    ...resolvedSettings,
+    ...request.sectionSettings?.A,
+  };
+  const sectionBSettings: GenerationSettings = {
+    ...resolvedSettings,
+    ...request.sectionSettings?.B,
+  };
   const sectionAResult = generateSectionA({
     seed: deriveSeed(seed, "section:A"),
-    settings: resolvedSettings,
+    settings: sectionASettings,
     styleProfile,
   });
   const sectionBResult = generateSectionB({
     seed: deriveSeed(seed, "section:B"),
-    settings: resolvedSettings,
+    settings: sectionBSettings,
     styleProfile,
     sectionA: sectionAResult.value,
   });
+  const [sectionA, sectionB] = limitSessionHarmonicSpice(
+    [sectionAResult.value, sectionBResult.value],
+    new Set(["A", "B"]),
+    styleProfile,
+    seed,
+  );
+  if (!sectionA || !sectionB) {
+    throw new Error("Session generation requires themes A and B.");
+  }
   const sectionAWarning = calculateTransitionWarningSeconds(
-    sectionAResult.value.bars,
+    sectionA.bars,
     bpm,
     settings.meter,
   );
   const sectionBWarning = calculateTransitionWarningSeconds(
-    sectionBResult.value.bars,
+    sectionB.bars,
     bpm,
     settings.meter,
   );
+  const sectionADuration = resolveSectionDurationSeconds({
+    timing: settings.timing,
+    label: "A",
+    bars: sectionA.bars,
+    bpm,
+    meter: settings.meter,
+    seed,
+  });
+  const sectionBDuration = resolveSectionDurationSeconds({
+    timing: settings.timing,
+    label: "B",
+    bars: sectionB.bars,
+    bpm,
+    meter: settings.meter,
+    seed,
+  });
   const timeline = [
     timelineStep(
       seed,
       0,
-      sectionAResult.value.id,
-      settings.timing.sectionADurationSeconds,
+      sectionA.id,
+      sectionADuration,
       sectionAWarning,
     ),
     timelineStep(
       seed,
       1,
-      sectionBResult.value.id,
-      settings.timing.sectionBDurationSeconds,
+      sectionB.id,
+      sectionBDuration,
       sectionBWarning,
     ),
     timelineStep(
       seed,
       2,
-      sectionAResult.value.id,
-      settings.timing.sectionADurationSeconds,
+      sectionA.id,
+      sectionADuration,
       sectionAWarning,
     ),
   ];
@@ -78,18 +118,20 @@ export function generateSession(
       seed,
       title: `${styleProfile.name} ${settings.key} ${settings.mode}`,
       styleId: settings.styleId,
+      styleArchetypeId: styleProfile.archetypeId,
+      styleChordTreatment: styleProfile.chordTreatment,
       key: settings.key,
       mode: settings.mode,
       bpm,
       meter: settings.meter,
       complexity: settings.complexity,
       harmonicFreedom: settings.harmonicFreedom,
-      sections: [sectionAResult.value, sectionBResult.value],
+      sections: [sectionA, sectionB],
       timeline,
       transitionWarningSeconds: Math.max(sectionAWarning, sectionBWarning),
       theme: "dark",
       createdAt: new Date().toISOString(),
-      schemaVersion: 1,
+      schemaVersion: 2,
     },
     attempts: sectionAResult.attempts + sectionBResult.attempts,
     usedFallback: sectionAResult.usedFallback || sectionBResult.usedFallback,

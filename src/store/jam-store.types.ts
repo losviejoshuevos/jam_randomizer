@@ -8,6 +8,7 @@ import type {
 export interface JamStoreState {
   currentSession: JamSession | null;
   recentSessions: JamSession[];
+  favoriteSessions: JamSession[];
   latestSettings: GenerationSettings | null;
   selectedTheme: ThemeId;
 }

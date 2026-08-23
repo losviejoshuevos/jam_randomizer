@@ -10,8 +10,10 @@ export type Complexity = "easy" | "medium" | "advanced";
 export type HarmonicFreedom = "strict" | "colorful" | "adventurous";
 export type Mode = "major" | "minor";
 export type Meter = "4/4" | "3/4";
-export type SectionLabel = "A" | "B";
-export type SectionRole = "theme" | "chorus" | "bridge";
+export type SectionLabel = "A" | "B" | "C" | "D";
+export type GeneratorSectionLabel = "A" | "B";
+export type SectionRole = "theme" | "development" | "bridge" | "coda";
+export type SectionDurationMode = "random" | "seconds" | "squares";
 
 export type PitchClass =
   | "C"
@@ -73,7 +75,15 @@ export interface JamSection {
   repeats: number;
   locked: boolean;
   generationSeed: Seed;
+  harmonySettings: SectionHarmonySettings;
   chords: JamChord[];
+}
+
+export interface SectionHarmonySettings {
+  key: PitchClass;
+  mode: Mode;
+  complexity: Complexity;
+  harmonicFreedom: HarmonicFreedom;
 }
 
 export interface TimelineStep {
@@ -88,6 +98,10 @@ export interface JamSession {
   seed: Seed;
   title: string;
   styleId: StyleId;
+  /** Hidden, deterministic variant of a broad public style. */
+  styleArchetypeId?: string;
+  /** Session-wide chord treatment keeps all themes stylistically related. */
+  styleChordTreatment?: "power" | "triads" | "mixed";
   key: PitchClass;
   mode: Mode;
   bpm: number;
@@ -105,6 +119,20 @@ export interface JamSession {
 export interface SessionTimingSettings {
   sectionADurationSeconds: number;
   sectionBDurationSeconds: number;
+  sectionADurationMode?: SectionDurationMode;
+  sectionBDurationMode?: SectionDurationMode;
+  sectionASquares?: number;
+  sectionBSquares?: number;
+  sectionDurations?: Partial<
+    Record<
+      SectionLabel,
+      {
+        mode: SectionDurationMode;
+        seconds: number;
+        squares: number;
+      }
+    >
+  >;
   transitionWarningSeconds: number;
 }
 

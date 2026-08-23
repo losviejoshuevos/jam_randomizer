@@ -6,15 +6,24 @@ import type {
   Seed,
 } from "../domain/types";
 import { generateHarmonicFunctions } from "../harmony/generate-functions";
-import { getAvailableChordDefinitions } from "../harmony/availability";
+import {
+  createActiveHarmonicPools,
+  getAvailableChordDefinitions,
+} from "../harmony/availability";
 import { diversifyHalfBarChords } from "../harmony/diversify-half-bar-chords";
 import { selectHarmonicChordPattern } from "../harmony/select-chord-pattern";
 import { selectChordDefinitions } from "../harmony/select-chords";
+import { selectSectionStartDefinition } from "../harmony/select-section-start";
 import { createSeededRandom, deriveSeed, weightedChoice } from "../random";
 import { renderRomanChord } from "../rendering/render-roman-chord";
 import { generateHarmonicRhythm } from "../structure/harmonic-rhythm";
 import { validateGeneratedSection } from "../validation/validate-section";
 import type { GenerationResult } from "./contracts";
+import { generateRockSection } from "../rock/generate-rock-section";
+import { generateBluesSection } from "../blues/generate-blues-section";
+import { generateSoulSection } from "../soul/generate-soul-section";
+import { generateJazzSection } from "../jazz/generate-jazz-section";
+import { generateConfiguredGrooveSection } from "../groove/generate-configured-groove-section";
 
 export interface GenerateSectionARequest {
   seed: Seed;
@@ -54,8 +63,10 @@ function createAttempt(
   attemptSeed: Seed,
   settings: GenerationSettings,
   profile: StyleProfile,
+  startsOnRootTonic: boolean,
 ): JamSection {
   const random = createSeededRandom(attemptSeed);
+  const activePools = createActiveHarmonicPools(settings, random);
   const bars = weightedChoice(profile.sectionRules.A.bars, random);
   const durations = generateHarmonicRhythm(
     profile,
@@ -71,6 +82,7 @@ function createAttempt(
     "A",
     durations.length,
     random,
+    activePools,
   );
   const selectedDefinitions =
     chordPattern ??
@@ -85,13 +97,23 @@ function createAttempt(
       profile,
       settings,
       random,
+      activePools,
     ).definitions;
+  selectedDefinitions[0] = selectSectionStartDefinition(
+    profile,
+    settings,
+    "A",
+    startsOnRootTonic,
+    random,
+    activePools,
+  );
   const definitions = diversifyHalfBarChords(
     selectedDefinitions,
     durations,
     profile,
     settings,
     random,
+    activePools,
   );
 
   return {
@@ -103,6 +125,12 @@ function createAttempt(
     repeats: 1,
     locked: false,
     generationSeed: attemptSeed,
+    harmonySettings: {
+      key: settings.key,
+      mode: settings.mode,
+      complexity: settings.complexity,
+      harmonicFreedom: settings.harmonicFreedom,
+    },
     chords: materializeChords(definitions, durations, attemptSeed, settings),
   };
 }
@@ -142,6 +170,12 @@ function createSafeFallback(
     repeats: 1,
     locked: false,
     generationSeed: fallbackSeed,
+    harmonySettings: {
+      key: settings.key,
+      mode: settings.mode,
+      complexity: settings.complexity,
+      harmonicFreedom: settings.harmonicFreedom,
+    },
     chords: materializeChords(
       definitions,
       [4],
@@ -155,6 +189,55 @@ export function generateSectionA(
   request: GenerateSectionARequest,
 ): GenerationResult<JamSection> {
   const { seed, settings, styleProfile } = request;
+  if (styleProfile.generatorKind === "rock") {
+    return generateRockSection({
+      seed,
+      settings,
+      styleProfile,
+      label: "A",
+    });
+  }
+  if (styleProfile.generatorKind === "blues") {
+    return generateBluesSection({
+      seed,
+      settings,
+      styleProfile,
+      label: "A",
+    });
+  }
+  if (styleProfile.generatorKind === "soul") {
+    return generateSoulSection({
+      seed,
+      settings,
+      styleProfile,
+      label: "A",
+    });
+  }
+  if (styleProfile.generatorKind === "jazz") {
+    return generateJazzSection({
+      seed,
+      settings,
+      styleProfile,
+      label: "A",
+    });
+  }
+  if (
+    styleProfile.generatorKind === "neo-soul" ||
+    styleProfile.generatorKind === "reggae" ||
+    styleProfile.generatorKind === "disco" ||
+    styleProfile.generatorKind === "country"
+  ) {
+    return generateConfiguredGrooveSection({
+      seed,
+      settings,
+      styleProfile,
+      label: "A",
+      generatorKind: styleProfile.generatorKind,
+    });
+  }
+  const startsOnRootTonic =
+    createSeededRandom(deriveSeed(seed, "section:A:start-root-tonic")).next() <
+    0.7;
 
   for (
     let attempt = 0;
@@ -162,7 +245,12 @@ export function generateSectionA(
     attempt += 1
   ) {
     const attemptSeed = deriveSeed(seed, `section:A:attempt:${attempt}`);
-    const section = createAttempt(attemptSeed, settings, styleProfile);
+    const section = createAttempt(
+      attemptSeed,
+      settings,
+      styleProfile,
+      startsOnRootTonic,
+    );
     const validation = validateGeneratedSection(
       section,
       "A",

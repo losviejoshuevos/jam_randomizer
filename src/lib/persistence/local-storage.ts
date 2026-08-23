@@ -5,6 +5,7 @@ import {
   type PersistedJamState,
   type PersistenceResult,
 } from "./contracts";
+import type { JamSession } from "../music/domain/types";
 
 export const JAM_STORAGE_KEY = "jam-randomizer:state";
 
@@ -22,6 +23,72 @@ function isPersistedState(value: unknown): value is PersistedJamState {
   );
 }
 
+function migrateSession(session: JamSession): JamSession {
+  return {
+    ...session,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    sections: session.sections.map((section) => ({
+      ...section,
+      harmonySettings: section.harmonySettings ?? {
+        key: session.key,
+        mode: session.mode,
+        complexity: session.complexity,
+        harmonicFreedom: session.harmonicFreedom,
+      },
+    })),
+  };
+}
+
+function migrateVersionOne(state: PersistedJamState): PersistedJamState {
+  const currentSession = state.currentSession
+    ? migrateSession(state.currentSession)
+    : null;
+  return {
+    ...state,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    currentSession,
+    recentSessions: state.recentSessions.map(migrateSession),
+    favoriteSessions: [],
+    latestSectionSettings: currentSession
+      ? {
+          A:
+            currentSession.sections.find(({ label }) => label === "A")
+              ?.harmonySettings ?? {
+              key: currentSession.key,
+              mode: currentSession.mode,
+              complexity: currentSession.complexity,
+              harmonicFreedom: currentSession.harmonicFreedom,
+            },
+          B:
+            currentSession.sections.find(({ label }) => label === "B")
+              ?.harmonySettings ?? {
+              key: currentSession.key,
+              mode: currentSession.mode,
+              complexity: currentSession.complexity,
+              harmonicFreedom: currentSession.harmonicFreedom,
+            },
+          C:
+            currentSession.sections.find(({ label }) => label === "C")
+              ?.harmonySettings,
+          D:
+            currentSession.sections.find(({ label }) => label === "D")
+              ?.harmonySettings,
+        }
+      : null,
+    appliedTimingSettings: state.latestSettings,
+  };
+}
+
+function migrateVersionTwo(state: PersistedJamState): PersistedJamState {
+  return {
+    ...state,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    currentSession: state.currentSession ? migrateSession(state.currentSession) : null,
+    recentSessions: state.recentSessions.map(migrateSession),
+    favoriteSessions: [],
+  };
+}
+
 export function createJamPersistence(storage: KeyValueStorage): JamPersistence {
   return {
     load(): PersistenceResult<PersistedJamState | null> {
@@ -36,6 +103,14 @@ export function createJamPersistence(storage: KeyValueStorage): JamPersistence {
 
         if (!isPersistedState(parsed)) {
           return { ok: false, error: "corrupt" };
+        }
+
+        if (parsed.schemaVersion === 1) {
+          return { ok: true, value: migrateVersionOne(parsed) };
+        }
+
+        if (parsed.schemaVersion === 2) {
+          return { ok: true, value: migrateVersionTwo(parsed) };
         }
 
         if (parsed.schemaVersion !== CURRENT_SCHEMA_VERSION) {

@@ -6,7 +6,7 @@ import type {
   HarmonicFreedom,
   Mode,
 } from "@/lib/music/domain/types";
-import { generateSectionA } from "@/lib/music/generator";
+import { generateSectionA, generateSectionB } from "@/lib/music/generator";
 import { getAvailableChordDefinitions } from "@/lib/music/harmony/availability";
 import { validateGeneratedSection } from "@/lib/music/validation/validate-section";
 
@@ -63,12 +63,12 @@ describe("generateSectionA", () => {
     }
   });
 
-  it("can use neighboring-key color in adventurous mode", () => {
+  it("can use chromatic color in adventurous mode", () => {
     const adventurousSettings = settings("adventurous");
     const generatedRoman = new Set<string | null>();
-    const neighboringRoman = new Set(
+    const chromaticRoman = new Set(
       getAvailableChordDefinitions(funkStyleProfile, adventurousSettings)
-        .filter(({ tonalSource }) => tonalSource.kind === "neighboring-key")
+        .filter(({ harmonicPool }) => harmonicPool.startsWith("chromatic-"))
         .map(({ roman }) => roman),
     );
 
@@ -83,7 +83,7 @@ describe("generateSectionA", () => {
 
     expect(
       [...generatedRoman].some(
-        (roman) => roman !== null && neighboringRoman.has(roman),
+        (roman) => roman !== null && chromaticRoman.has(roman),
       ),
     ).toBe(true);
   });
@@ -102,10 +102,25 @@ describe("generateSectionA", () => {
 
     expect(colorfulRoman.size).toBeGreaterThan(strictRoman.size);
     expect(adventurousRoman.size).toBeGreaterThan(colorfulRoman.size);
-    expect(strictRoman.has("i13")).toBe(false);
-    expect(colorfulRoman.has("i13")).toBe(true);
-    expect(colorfulRoman.has("V13/V")).toBe(false);
-    expect(adventurousRoman.has("V13/V")).toBe(true);
+    expect(strictRoman.has("i13")).toBe(true);
+    expect(strictRoman.has("IV13")).toBe(false);
+    expect(colorfulRoman.has("IV13")).toBe(true);
+    expect(colorfulRoman.has("I13")).toBe(false);
+    expect(adventurousRoman.has("I13")).toBe(true);
+  });
+
+  it("keeps the core tonic 13sus4 available by advanced complexity", () => {
+    const strictAdvancedMajor = getAvailableChordDefinitions(
+      funkStyleProfile,
+      settings("strict", "advanced", "major"),
+    ).map(({ roman }) => roman);
+    const strictMediumMajor = getAvailableChordDefinitions(
+      funkStyleProfile,
+      settings("strict", "medium", "major"),
+    ).map(({ roman }) => roman);
+
+    expect(strictAdvancedMajor).toContain("I13sus4");
+    expect(strictMediumMajor).not.toContain("I13sus4");
   });
 
   it("generates song-derived Funk pattern families", () => {
@@ -130,9 +145,52 @@ describe("generateSectionA", () => {
       }
     }
 
-    expect(generatedPatterns).toContain("I9 II9 bII9 I9");
     expect(generatedPatterns).toContain("i7 IV9 i7 IV9");
     expect(generatedPatterns).toContain("I13 I13sus4 I13 I13sus4");
+    expect(generatedPatterns).toContain("I7 I9");
+    expect(generatedPatterns).toContain("i7 i9");
+    expect(generatedPatterns).toContain("i7 bIII9");
+    expect(generatedPatterns).toContain("i9 bII9");
+  });
+
+  it("makes one-chord-per-bar harmony rare in theme A", () => {
+    let oneBarSections = 0;
+    const sampleSize = 2_000;
+
+    for (let seed = 0; seed < sampleSize; seed += 1) {
+      const section = generateSectionA({
+        seed: `slow-groove-${seed}`,
+        settings: settings("strict", "medium", "major"),
+        styleProfile: funkStyleProfile,
+      }).value;
+
+      oneBarSections += Number(
+        section.chords.every(({ durationBars }) => durationBars === 1),
+      );
+    }
+
+    expect(oneBarSections).toBeGreaterThan(0);
+    expect(oneBarSections / sampleSize).toBeLessThan(0.05);
+  });
+
+  it("centers strict Funk grooves on the tonic, fourth and fifth roots", () => {
+    let primaryRoots = 0;
+    let allRoots = 0;
+
+    for (let seed = 0; seed < 2_000; seed += 1) {
+      const section = generateSectionA({
+        seed: `primary-funk-roots-${seed}`,
+        settings: settings("strict", "medium", "major"),
+        styleProfile: funkStyleProfile,
+      }).value;
+
+      for (const chord of section.chords) {
+        allRoots += 1;
+        primaryRoots += Number(/^(?:IV|V|I)(?=maj|add|sus|6|7|9|11|13|$)/.test(chord.roman));
+      }
+    }
+
+    expect(primaryRoots / allRoots).toBeGreaterThan(0.8);
   });
 
   it("uses triads only on easy cards", () => {
@@ -148,7 +206,7 @@ describe("generateSectionA", () => {
 
         expect(
           result.value.chords.every(({ roman }) =>
-            /^(?:b|#)?[ivIV]+$/.test(roman ?? ""),
+            /^(?:b|#)?[ivIV]+(?:dim)?$/.test(roman ?? ""),
           ),
           `seed easy-${mode}-${seed}`,
         ).toBe(true);
@@ -186,8 +244,9 @@ describe("generateSectionA", () => {
 
         expect(
           result.value.chords.every(({ roman }) =>
-            /(?:maj9|11|13|7#9|7b9)/.test(roman ?? "") ||
-              (mode === "minor" && /(?:i7|i9)/.test(roman ?? "")),
+            /(?:maj7|maj9|6\/9|6|add2|add4|add9|sus2|sus4|7|9|11|13|dim)/.test(
+              roman ?? "",
+            ),
           ),
           `seed advanced-extensions-${mode}-${seed}`,
         ).toBe(true);
@@ -267,28 +326,49 @@ describe("generateSectionA", () => {
     expect(foundSingleChordVamp).toBe(true);
   });
 
-  it("uses half-bar changes rarely in 4/4 Medium and never in Easy or 3/4", () => {
+  it("reserves rare half-bar turnarounds for development themes in 4/4", () => {
     let halfBarSections = 0;
     const sampleSize = 2_000;
 
     for (let seed = 0; seed < sampleSize; seed += 1) {
-      const mediumResult = generateSectionA({
+      const mediumSettings = settings("adventurous", "medium", "major");
+      const sectionA = generateSectionA({
+        seed: `half-bar-source-${seed}`,
+        settings: mediumSettings,
+        styleProfile: funkStyleProfile,
+      }).value;
+      const mediumResult = generateSectionB({
         seed: `half-bar-medium-${seed}`,
-        settings: settings("adventurous", "medium", "major"),
+        settings: mediumSettings,
         styleProfile: funkStyleProfile,
+        sectionA,
       });
-      const easyResult = generateSectionA({
+      const easySettings = settings("adventurous", "easy", "major");
+      const easyA = generateSectionA({
+        seed: `half-bar-easy-source-${seed}`,
+        settings: easySettings,
+        styleProfile: funkStyleProfile,
+      }).value;
+      const easyResult = generateSectionB({
         seed: `half-bar-easy-${seed}`,
-        settings: settings("adventurous", "easy", "major"),
+        settings: easySettings,
         styleProfile: funkStyleProfile,
+        sectionA: easyA,
       });
-      const threeFourResult = generateSectionA({
-        seed: `half-bar-three-four-${seed}`,
-        settings: {
-          ...settings("adventurous", "advanced", "major"),
-          meter: "3/4",
-        },
+      const threeFourSettings = {
+        ...settings("adventurous", "advanced", "major"),
+        meter: "3/4" as const,
+      };
+      const threeFourA = generateSectionA({
+        seed: `half-bar-three-four-source-${seed}`,
+        settings: threeFourSettings,
         styleProfile: funkStyleProfile,
+      }).value;
+      const threeFourResult = generateSectionB({
+        seed: `half-bar-three-four-${seed}`,
+        settings: threeFourSettings,
+        styleProfile: funkStyleProfile,
+        sectionA: threeFourA,
       });
 
       halfBarSections += Number(
@@ -301,6 +381,10 @@ describe("generateSectionA", () => {
           expect(chord.roman, `seed half-bar-medium-${seed}`).not.toBe(
             previous.roman,
           );
+          expect(
+            new Set([previous.roman, chord.roman]),
+            `chromatic half-bar pair for seed half-bar-medium-${seed}`,
+          ).toEqual(new Set(["I9", "bII9"]));
         }
       });
       expect(
@@ -315,6 +399,34 @@ describe("generateSectionA", () => {
 
     expect(halfBarSections).toBeGreaterThan(0);
     expect(halfBarSections / sampleSize).toBeLessThan(0.12);
+  });
+
+  it("can descend chromatically through v - bv - iv in a minor half-bar turnaround", () => {
+    let foundChromaticDescent = false;
+    const minorSettings = settings("adventurous", "medium", "minor");
+
+    for (let seed = 0; seed < 5_000 && !foundChromaticDescent; seed += 1) {
+      const sectionA = generateSectionA({
+        seed: `minor-chromatic-source-${seed}`,
+        settings: minorSettings,
+        styleProfile: funkStyleProfile,
+      }).value;
+      const sectionB = generateSectionB({
+        seed: `minor-chromatic-development-${seed}`,
+        settings: minorSettings,
+        styleProfile: funkStyleProfile,
+        sectionA,
+      }).value;
+      const romans = sectionB.chords.slice(0, 3).map(({ roman }) => roman);
+
+      foundChromaticDescent =
+        /^v(?:7|9|11)$/.test(romans[0] ?? "") &&
+        /^bv(?:7|9)$/.test(romans[1] ?? "") &&
+        /^iv(?:7|9|11)$/.test(romans[2] ?? "") &&
+        sectionB.chords.some(({ durationBars }) => durationBars === 0.5);
+    }
+
+    expect(foundChromaticDescent).toBe(true);
   });
 
   it("keeps structural invariants across 1000 seeds", () => {
@@ -337,8 +449,50 @@ describe("generateSectionA", () => {
         valid: true,
         issues: [],
       });
-      expect(result.value.chords[0]?.harmonicFunction).toBe("tonic");
+      expect(
+        funkStyleProfile.sectionRules.A.allowedStartFunctions.some(
+          ({ value }) => value === result.value.chords[0]?.harmonicFunction,
+        ),
+      ).toBe(true);
       expect(result.usedFallback).toBe(false);
     }
+  });
+
+  it("starts theme A on the root tonic about 70% of the time", () => {
+    let tonicStarts = 0;
+    const sampleSize = 1_000;
+
+    for (let seed = 0; seed < sampleSize; seed += 1) {
+      const firstRoman = generateSectionA({
+        seed: `theme-a-start-rate-${seed}`,
+        settings: settings("colorful", "medium", "major"),
+        styleProfile: funkStyleProfile,
+      }).value.chords[0]?.roman;
+
+      if (firstRoman && (/^I(?:maj|\d|$)/.test(firstRoman))) tonicStarts += 1;
+    }
+
+    expect(tonicStarts / sampleSize).toBeGreaterThan(0.65);
+    expect(tonicStarts / sampleSize).toBeLessThan(0.75);
+  });
+
+  it("uses third-degree tonic substitutes rarely", () => {
+    let sectionsWithThirdDegree = 0;
+    const sampleSize = 1_000;
+
+    for (let seed = 0; seed < sampleSize; seed += 1) {
+      const section = generateSectionA({
+        seed: `third-degree-${seed}`,
+        settings: settings("strict", "medium", "major"),
+        styleProfile: funkStyleProfile,
+      }).value;
+
+      if (section.chords.some(({ roman }) => roman === "iii7")) {
+        sectionsWithThirdDegree += 1;
+      }
+    }
+
+    expect(sectionsWithThirdDegree).toBeGreaterThan(0);
+    expect(sectionsWithThirdDegree / sampleSize).toBeLessThan(0.25);
   });
 });

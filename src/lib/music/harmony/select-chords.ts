@@ -1,7 +1,7 @@
 import type {
   ChordDefinition,
+  HarmonicPool,
   StyleProfile,
-  TonalSource,
 } from "../domain/style-profile";
 import type {
   GenerationSettings,
@@ -12,10 +12,8 @@ import type { RandomSource } from "../random";
 import { weightedChoice } from "../random";
 import {
   getAvailableChordDefinitions,
-  getTonalSourceWeight,
+  getHarmonicPoolWeight,
 } from "./availability";
-
-type TonalSourceKind = TonalSource["kind"];
 
 function chooseDefinition(
   definitions: ChordDefinition[],
@@ -23,20 +21,16 @@ function chooseDefinition(
   settings: GenerationSettings,
   random: RandomSource,
 ): ChordDefinition {
-  const sourceKinds = [...new Set(definitions.map(({ tonalSource }) => tonalSource.kind))];
-  const sourceChoices: WeightedValue<TonalSourceKind>[] = sourceKinds.map((kind) => {
-    const example = definitions.find(
-      ({ tonalSource }) => tonalSource.kind === kind,
-    ) as ChordDefinition;
-
+  const pools = [...new Set(definitions.map(({ harmonicPool }) => harmonicPool))];
+  const poolChoices: WeightedValue<HarmonicPool>[] = pools.map((pool) => {
     return {
-      value: kind,
-      weight: getTonalSourceWeight(example.tonalSource, profile, settings),
+      value: pool,
+      weight: getHarmonicPoolWeight(pool, profile, settings),
     };
   });
-  const selectedSource = weightedChoice(sourceChoices, random);
+  const selectedPool = weightedChoice(poolChoices, random);
   const chordChoices = definitions
-    .filter(({ tonalSource }) => tonalSource.kind === selectedSource)
+    .filter(({ harmonicPool }) => harmonicPool === selectedPool)
     .map((definition) => ({ value: definition, weight: definition.weight }));
 
   return weightedChoice(chordChoices, random);
@@ -52,6 +46,7 @@ export function selectChordDefinitions(
   profile: StyleProfile,
   settings: GenerationSettings,
   random: RandomSource,
+  activePools?: ReadonlySet<HarmonicPool>,
 ): SelectedHarmony {
   const functions = [...initialFunctions];
   const definitions: ChordDefinition[] = [];
@@ -67,6 +62,7 @@ export function selectChordDefinitions(
       profile,
       settings,
       functions[index],
+      activePools,
     );
 
     if (mustResolveToDominant || isLast) {

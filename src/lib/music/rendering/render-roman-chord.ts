@@ -77,16 +77,12 @@ function renderPitch(
   return (useFlats ? FLAT_NAMES : SHARP_NAMES)[semitone];
 }
 
-export function renderRomanChord(
+function renderSingleRomanChord(
   roman: RomanChord,
   key: PitchClass,
   mode: Mode,
 ): string {
-  if (roman === "V7/V" || roman === "V13/V") {
-    return `${renderPitch(key, 2, mode)}${roman.startsWith("V13") ? "13" : "7"}`;
-  }
-
-  const match = /^(b|#)?(VII|III|VI|IV|II|V|I|vii|iii|vi|iv|ii|v|i)(maj7|maj9|6\/9|6|7sus4|9sus4|13sus4|7#9|7b9|7|9|11|13)?$/.exec(
+  const match = /^(b|#)?(VII|III|VI|IV|II|V|I|vii|iii|vi|iv|ii|v|i)(maj7#11|maj9#11|maj7|maj9|6\/9|6|add2|add4|add9|sus2|sus4|7sus4|9sus4|13sus4|13b9|7alt|7#9|7b9|7b5|dim7|dim|aug|7|9|11|13|5)?$/.exec(
     roman,
   );
 
@@ -104,7 +100,44 @@ export function renderRomanChord(
     accidental as "b" | "#" | undefined,
   );
   const isMinor = rawDegree === rawDegree.toLowerCase();
-  const quality = isMinor ? `m${extension}` : extension;
+  const quality = extension === "5"
+    ? "5"
+    : extension.startsWith("dim") || extension === "aug"
+    ? extension
+    : extension.startsWith("sus")
+      ? extension
+      : isMinor
+        ? extension.startsWith("maj")
+          ? `mM${extension.slice(1)}`
+          : `m${extension}`
+        : extension;
 
   return `${root}${quality}`;
+}
+
+export function renderRomanChord(
+  roman: RomanChord,
+  key: PitchClass,
+  mode: Mode,
+): string {
+  if (roman === "V7/V" || roman === "V13/V") {
+    return `${renderPitch(key, 2, mode)}${roman.startsWith("V13") ? "13" : "7"}`;
+  }
+
+  const slashChord = /^(.+)\/@((?:b|#)?(?:VII|III|VI|IV|II|V|I))$/.exec(roman);
+  if (!slashChord) return renderSingleRomanChord(roman, key, mode);
+
+  const [, chordRoman, bassRoman] = slashChord;
+  const bassMatch = /^(b|#)?(VII|III|VI|IV|II|V|I)$/.exec(bassRoman);
+  if (!bassMatch) throw new Error(`Unsupported RomanChord: ${roman}.`);
+  const [, accidental, degree] = bassMatch;
+  const accidentalOffset = accidental === "b" ? -1 : accidental === "#" ? 1 : 0;
+  const bass = renderPitch(
+    key,
+    DEGREE_TO_SEMITONES[degree] + accidentalOffset,
+    mode,
+    accidental as "b" | "#" | undefined,
+  );
+
+  return `${renderSingleRomanChord(chordRoman, key, mode)}/${bass}`;
 }

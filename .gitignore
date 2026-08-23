@@ -8,3 +8,5 @@ coverage/
 .DS_Store
 music_theory/*.pdf
 npm-debug.log*
+AGENTS.md
+CLAUDE.md

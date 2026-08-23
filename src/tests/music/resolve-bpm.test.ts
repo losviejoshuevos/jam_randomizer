@@ -3,6 +3,7 @@ import {
   MAX_MANUAL_BPM,
   MIN_MANUAL_BPM,
   resolveBpm,
+  resolveDifferentRandomBpm,
 } from "@/lib/music/tempo/resolve-bpm";
 
 describe("resolveBpm", () => {
@@ -26,6 +27,14 @@ describe("resolveBpm", () => {
 
   it("preserves a valid manually selected BPM", () => {
     expect(resolveBpm(127, funkRange, "manual-tempo")).toBe(127);
+  });
+
+  it("changes a random BPM even when the seeded draw repeats it", () => {
+    const drawn = resolveBpm("random", funkRange, "repeat-random-tempo");
+
+    expect(
+      resolveDifferentRandomBpm(drawn, funkRange, "repeat-random-tempo"),
+    ).not.toBe(drawn);
   });
 
   it.each([MIN_MANUAL_BPM - 1, MAX_MANUAL_BPM + 1, 100.5])(

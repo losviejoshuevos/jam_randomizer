@@ -37,6 +37,15 @@ body {
   color: #090a06;
 }
 
+.editor-shell select {
+  appearance: none;
+  padding-right: 2.75rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23aaa79b' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+  background-position: right 0.85rem center;
+  background-repeat: no-repeat;
+  background-size: 1rem;
+}
+
 .control-panel,
 .session-strip,
 .history-panel {
@@ -70,14 +79,131 @@ body {
 }
 
 .stage-shell {
+  --stage-background: #050505;
+  --stage-card-background: #1b1c18;
+  --stage-badge-background: #161a0d;
+  --stage-card-border: color-mix(in srgb, var(--accent) 18%, rgba(255, 255, 255, 0.08));
+  --stage-frame-border: color-mix(in srgb, var(--accent-cool) 12%, rgba(255, 255, 255, 0.08));
+  --stage-pattern:
+    repeating-linear-gradient(90deg, transparent 0 95px, rgba(255, 255, 255, 0.018) 96px),
+    repeating-linear-gradient(0deg, transparent 0 95px, rgba(255, 255, 255, 0.018) 96px);
   position: relative;
   isolation: isolate;
   overflow: hidden;
   background:
-    radial-gradient(circle at 16% 5%, rgba(227, 255, 99, 0.11), transparent 30rem),
-    radial-gradient(circle at 88% 28%, rgba(255, 79, 216, 0.09), transparent 34rem),
-    radial-gradient(circle at 52% 105%, rgba(85, 231, 255, 0.08), transparent 36rem),
-    #050505;
+    radial-gradient(circle at 16% 5%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 30rem),
+    radial-gradient(circle at 88% 28%, color-mix(in srgb, var(--accent-hot) 10%, transparent), transparent 34rem),
+    radial-gradient(circle at 52% 105%, color-mix(in srgb, var(--accent-cool) 9%, transparent), transparent 36rem),
+    var(--stage-background);
+  transition: background-color 400ms ease;
+}
+
+.stage-shell[data-style="funk"] {
+  --accent: #dfff3f;
+  --accent-cool: #47e9ff;
+  --accent-hot: #ff4fd8;
+  --stage-background: #050505;
+  --stage-card-background: #191b16;
+  --stage-badge-background: #151a0b;
+  --stage-pattern:
+    repeating-linear-gradient(90deg, transparent 0 79px, rgba(223, 255, 63, 0.025) 80px),
+    repeating-linear-gradient(0deg, transparent 0 79px, rgba(71, 233, 255, 0.02) 80px);
+}
+
+.stage-shell[data-style="rock"] {
+  --accent: #ffb13b;
+  --accent-cool: #ff6b4f;
+  --accent-hot: #ff315f;
+  --stage-background: #090504;
+  --stage-card-background: #211513;
+  --stage-badge-background: #231407;
+  --stage-pattern:
+    repeating-linear-gradient(118deg, transparent 0 118px, rgba(255, 177, 59, 0.035) 119px 121px),
+    linear-gradient(90deg, rgba(255, 49, 95, 0.025), transparent 28%, transparent 72%, rgba(255, 107, 79, 0.025));
+}
+
+.stage-shell[data-style="blues"] {
+  --accent: #69b9ff;
+  --accent-cool: #78e1ff;
+  --accent-hot: #7868ff;
+  --stage-background: #030812;
+  --stage-card-background: #101a29;
+  --stage-badge-background: #091526;
+  --stage-pattern:
+    repeating-linear-gradient(0deg, transparent 0 70px, rgba(105, 185, 255, 0.035) 71px 72px),
+    linear-gradient(110deg, rgba(120, 104, 255, 0.025), transparent 45%);
+}
+
+.stage-shell[data-style="soul"] {
+  --accent: #ffc45f;
+  --accent-cool: #f29aaf;
+  --accent-hot: #a93760;
+  --stage-background: #100509;
+  --stage-card-background: #251217;
+  --stage-badge-background: #251307;
+  --stage-pattern:
+    radial-gradient(circle, rgba(255, 196, 95, 0.055) 0 2px, transparent 2.5px) 0 0 / 96px 96px,
+    radial-gradient(circle, rgba(242, 154, 175, 0.035) 0 2px, transparent 2.5px) 48px 48px / 96px 96px;
+}
+
+.stage-shell[data-style="jazz"] {
+  --accent: #e7b96d;
+  --accent-cool: #6ea8ff;
+  --accent-hot: #ad72d7;
+  --stage-background: #040813;
+  --stage-card-background: #111925;
+  --stage-badge-background: #21180c;
+  --stage-pattern:
+    repeating-linear-gradient(90deg, transparent 0 143px, rgba(231, 185, 109, 0.03) 144px),
+    radial-gradient(ellipse at 50% -10%, rgba(255, 255, 255, 0.055), transparent 50%);
+}
+
+.stage-shell[data-style="neo-soul"] {
+  --accent: #91ffe0;
+  --accent-cool: #789dff;
+  --accent-hot: #d96fff;
+  --stage-background: #070611;
+  --stage-card-background: #181426;
+  --stage-badge-background: #10231f;
+  --stage-pattern:
+    radial-gradient(circle at 22% 28%, rgba(145, 255, 224, 0.05), transparent 18rem),
+    radial-gradient(circle at 78% 66%, rgba(217, 111, 255, 0.045), transparent 20rem);
+}
+
+.stage-shell[data-style="reggae"] {
+  --accent: #ffd34f;
+  --accent-cool: #55d67d;
+  --accent-hot: #ed5b55;
+  --stage-background: #050b06;
+  --stage-card-background: #122018;
+  --stage-badge-background: #211b08;
+  --stage-pattern:
+    repeating-linear-gradient(0deg, transparent 0 62px, rgba(85, 214, 125, 0.035) 63px 64px),
+    linear-gradient(90deg, rgba(237, 91, 85, 0.025), transparent 32%, transparent 68%, rgba(255, 211, 79, 0.025));
+}
+
+.stage-shell[data-style="disco"] {
+  --accent: #f3ef67;
+  --accent-cool: #55e7ff;
+  --accent-hot: #ff4fd8;
+  --stage-background: #080311;
+  --stage-card-background: #1c1028;
+  --stage-badge-background: #211d08;
+  --stage-pattern:
+    repeating-linear-gradient(45deg, transparent 0 88px, rgba(255, 79, 216, 0.035) 89px 90px),
+    repeating-linear-gradient(-45deg, transparent 0 88px, rgba(85, 231, 255, 0.025) 89px 90px);
+}
+
+.stage-shell[data-style="country"] {
+  --accent: #f0b45c;
+  --accent-cool: #58c6bc;
+  --accent-hot: #d66d45;
+  --stage-background: #0d0905;
+  --stage-card-background: #261b12;
+  --stage-badge-background: #2a1909;
+  --stage-pattern:
+    repeating-linear-gradient(125deg, transparent 0 112px, rgba(240, 180, 92, 0.03) 113px 114px),
+    repeating-linear-gradient(55deg, transparent 0 168px, rgba(88, 198, 188, 0.018) 169px 170px);
 }
 
 .stage-shell::before {
@@ -86,31 +212,357 @@ body {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    repeating-linear-gradient(90deg, transparent 0 95px, rgba(255, 255, 255, 0.018) 96px),
-    repeating-linear-gradient(0deg, transparent 0 95px, rgba(255, 255, 255, 0.018) 96px);
+  background: var(--stage-pattern);
   mask-image: linear-gradient(to bottom, black, transparent 82%);
 }
 
+.stage-shell::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 8%, transparent);
+  box-shadow: inset 0 0 9rem color-mix(in srgb, var(--accent-hot) 3%, transparent);
+}
+
 .stage-frame {
-  background: rgba(255, 255, 255, 0.018);
+  border-color: var(--stage-frame-border) !important;
+  background: color-mix(in srgb, var(--stage-card-background) 28%, transparent);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.025),
-    0 0 70px rgba(227, 255, 99, 0.035);
+    0 0 70px color-mix(in srgb, var(--accent) 4%, transparent);
 }
 
 .stage-card {
+  border-color: var(--stage-card-border) !important;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.045), transparent 42%),
-    radial-gradient(circle at 100% 0%, rgba(227, 255, 99, 0.075), transparent 48%),
-    #1b1c18;
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 48%),
+    var(--stage-card-background);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.065),
-    0 16px 38px rgba(0, 0, 0, 0.25);
+    0 16px 38px rgba(0, 0, 0, 0.25),
+    0 0 28px color-mix(in srgb, var(--accent-cool) 3%, transparent);
 }
 
 .stage-bars {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 32px rgba(227, 255, 99, 0.18);
+    0 0 32px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.stage-shell > header p:first-child {
+  text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.stage-primary-panel,
+.stage-secondary-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.stage-layout-steady {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.stage-chord-symbol {
+  font-size: clamp(2.5rem, min(36cqw, 54cqh), 15rem);
+}
+
+.stage-chord-symbol-long {
+  font-size: clamp(2rem, min(24cqw, 44cqh), 11rem);
+}
+
+.stage-chord-symbol-extra-long {
+  font-size: clamp(1.5rem, min(16cqw, 34cqh), 8rem);
+}
+
+.stage-grid-single .stage-chord-symbol:not(.stage-chord-symbol-long) {
+  font-size: clamp(3.5rem, min(64cqw, 88cqh), 26rem);
+}
+
+.stage-grid-single .stage-chord-symbol-long:not(.stage-chord-symbol-extra-long) {
+  font-size: clamp(3rem, min(42cqw, 75cqh), 20rem);
+}
+
+.stage-grid-single .stage-chord-symbol-extra-long {
+  font-size: clamp(2.5rem, min(28cqw, 60cqh), 15rem);
+}
+
+.stage-grid-pair .stage-chord-symbol:not(.stage-chord-symbol-long) {
+  font-size: clamp(3rem, min(48cqw, 68cqh), 20rem);
+}
+
+.stage-grid-pair .stage-chord-symbol-long:not(.stage-chord-symbol-extra-long) {
+  font-size: clamp(2.5rem, min(32cqw, 58cqh), 16rem);
+}
+
+.stage-grid-pair .stage-chord-symbol-extra-long {
+  font-size: clamp(2rem, min(19cqw, 48cqh), 11rem);
+}
+
+.stage-chord-symbol-compact {
+  font-size: clamp(1.25rem, min(23cqw, 34cqh), 5rem);
+}
+
+.stage-beat-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  transition:
+    transform 80ms ease,
+    background-color 80ms ease,
+    box-shadow 80ms ease;
+}
+
+.stage-beat-dot-active {
+  transform: scale(1.45);
+  background: var(--accent-cool);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent-cool) 78%, transparent);
+}
+
+.stage-beat-dot-accent {
+  transform: scale(1.7);
+  background: var(--accent);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 92%, transparent);
+}
+
+.stage-metronome-indicator-shell {
+  display: flex;
+  min-width: 4.4rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.stage-metronome-indicator {
+  width: 1.4rem;
+  height: 1.4rem;
+  flex: none;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.stage-metronome-indicator-accent {
+  --indicator-color: var(--accent);
+  --indicator-shadow: color-mix(in srgb, var(--accent) 88%, transparent);
+  animation: stage-metronome-indicator-pulse 360ms ease-out both;
+}
+
+.stage-metronome-indicator-regular {
+  --indicator-color: var(--accent-cool);
+  --indicator-shadow: color-mix(in srgb, var(--accent-cool) 72%, transparent);
+  animation: stage-metronome-indicator-pulse 300ms ease-out both;
+}
+
+.stage-screen-beat-pulse {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  opacity: 0;
+  pointer-events: none;
+  border: 0.45rem solid var(--screen-beat-color);
+  background: var(--screen-beat-background);
+  box-shadow: inset 0 0 9rem var(--screen-beat-shadow);
+  animation: stage-screen-beat-pulse 360ms ease-out both;
+}
+
+.stage-screen-beat-pulse-accent {
+  --screen-beat-color: color-mix(in srgb, var(--accent) 98%, transparent);
+  --screen-beat-background: color-mix(in srgb, var(--accent) 30%, transparent);
+  --screen-beat-shadow: color-mix(in srgb, var(--accent) 58%, transparent);
+}
+
+.stage-screen-beat-pulse-regular {
+  --screen-beat-color: color-mix(in srgb, var(--accent-cool) 90%, transparent);
+  --screen-beat-background: color-mix(in srgb, var(--accent-cool) 20%, transparent);
+  --screen-beat-shadow: color-mix(in srgb, var(--accent-cool) 44%, transparent);
+}
+
+.stage-card-beat-pulse {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  border-radius: inherit;
+  border: 3px solid var(--beat-color);
+  background: var(--beat-background);
+  box-shadow:
+    inset 0 0 36px var(--beat-shadow),
+    0 0 28px var(--beat-shadow);
+  animation: stage-card-beat-pulse 260ms ease-out both;
+}
+
+.stage-card-beat-pulse-accent {
+  --beat-color: color-mix(in srgb, var(--accent) 95%, transparent);
+  --beat-background: color-mix(in srgb, var(--accent) 15%, transparent);
+  --beat-shadow: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+.stage-card-beat-pulse-regular {
+  --beat-color: color-mix(in srgb, var(--accent-cool) 72%, transparent);
+  --beat-background: color-mix(in srgb, var(--accent-cool) 7%, transparent);
+  --beat-shadow: color-mix(in srgb, var(--accent-cool) 25%, transparent);
+}
+
+.metronome-volume {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.stage-next-panel {
+  animation: stage-next-panel-in 500ms ease-out both;
+}
+
+.stage-departing-panel {
+  animation: stage-previous-panel-out 700ms ease-out both;
+}
+
+@media (orientation: landscape) and (min-width: 700px) {
+  .stage-layout-warning {
+    grid-template-columns: minmax(0, 1fr) minmax(17rem, 30vw);
+  }
+
+  .stage-layout-handoff {
+    grid-template-columns: minmax(15rem, 27vw) minmax(0, 1fr);
+  }
+}
+
+@media (orientation: portrait), (max-width: 699px) {
+  .stage-layout-warning,
+  .stage-layout-handoff {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(7rem, 0.38fr);
+  }
+
+  .stage-layout-handoff .stage-primary-panel {
+    order: 1;
+  }
+
+  .stage-layout-handoff .stage-departing-panel {
+    order: 2;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 480px) {
+  .stage-shell .stage-bars {
+    top: 0.45rem !important;
+    right: 0.45rem !important;
+    padding: 0.35rem 0.65rem !important;
+    border-radius: 0.55rem !important;
+    font-size: 1.35rem !important;
+  }
+
+  .stage-shell .stage-chord-symbol {
+    max-height: 72cqh;
+  }
+
+  .stage-shell .stage-grid-many .stage-card {
+    padding: 0.2rem 0.45rem !important;
+    border-radius: 0.65rem;
+  }
+
+  .stage-shell .stage-grid-many .stage-chord-symbol {
+    margin-top: 0 !important;
+    font-size: clamp(0.9rem, min(18cqw, 44cqh), 2.35rem);
+    line-height: 0.92;
+  }
+
+  .stage-shell .stage-grid-many .stage-chord-symbol-long {
+    font-size: clamp(0.78rem, min(14cqw, 40cqh), 1.9rem);
+  }
+
+  .stage-shell .stage-grid-many .stage-chord-symbol-extra-long {
+    font-size: clamp(0.68rem, min(11cqw, 36cqh), 1.55rem);
+  }
+
+  .stage-shell .stage-grid-many .stage-chord-roman {
+    display: none;
+  }
+
+  .stage-shell .stage-grid-many .stage-bars {
+    top: 0.2rem !important;
+    right: 0.25rem !important;
+    padding: 0.12rem 0.38rem !important;
+    border-radius: 0.45rem !important;
+    font-size: 0.85rem !important;
+    line-height: 1.1;
+  }
+
+  .stage-shell .stage-grid-many .stage-card > span:first-of-type {
+    top: 0.25rem;
+    left: 0.35rem;
+    font-size: 0.48rem;
+  }
+}
+
+@keyframes stage-card-beat-pulse {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes stage-metronome-indicator-pulse {
+  0% {
+    border-color: var(--indicator-color);
+    background: var(--indicator-color);
+    box-shadow:
+      0 0 0 0 var(--indicator-shadow),
+      0 0 28px var(--indicator-shadow);
+    transform: scale(1.24);
+  }
+  100% {
+    border-color: color-mix(in srgb, var(--indicator-color) 42%, transparent);
+    background: color-mix(in srgb, var(--indicator-color) 18%, transparent);
+    box-shadow: 0 0 0 0.45rem transparent;
+    transform: scale(1);
+  }
+}
+
+@keyframes stage-screen-beat-pulse {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes stage-next-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(2rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes stage-previous-panel-out {
+  from {
+    opacity: 0.72;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0.48;
+    transform: translateX(-0.4rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-card-beat-pulse,
+  .stage-metronome-indicator-accent,
+  .stage-metronome-indicator-regular,
+  .stage-screen-beat-pulse,
+  .stage-next-panel,
+  .stage-departing-panel {
+    animation: none;
+  }
 }

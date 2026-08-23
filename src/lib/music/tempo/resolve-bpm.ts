@@ -1,5 +1,5 @@
-import type { GenerationSettings, Seed } from "../domain/types";
-import { createSeededRandom, deriveSeed } from "../random";
+import type { GenerationSettings, Seed, WeightedValue } from "../domain/types";
+import { createSeededRandom, deriveSeed, weightedChoice } from "../random";
 
 export const MIN_MANUAL_BPM = 40;
 export const MAX_MANUAL_BPM = 240;
@@ -17,6 +17,7 @@ export function resolveBpm(
   requestedBpm: GenerationSettings["bpm"],
   randomRange: BpmRange,
   seed: Seed,
+  weightedRanges?: WeightedValue<BpmRange>[],
 ): number {
   if (requestedBpm !== "random") {
     if (!isIntegerInRange(requestedBpm, MIN_MANUAL_BPM, MAX_MANUAL_BPM)) {
@@ -36,7 +37,25 @@ export function resolveBpm(
   }
 
   const random = createSeededRandom(deriveSeed(seed, "tempo:bpm"));
-  const valueCount = randomRange.max - randomRange.min + 1;
+  const selectedRange = weightedRanges?.length
+    ? weightedChoice(weightedRanges, random)
+    : randomRange;
+  const valueCount = selectedRange.max - selectedRange.min + 1;
 
-  return randomRange.min + Math.floor(random.next() * valueCount);
+  return selectedRange.min + Math.floor(random.next() * valueCount);
+}
+
+export function resolveDifferentRandomBpm(
+  currentBpm: number,
+  randomRange: BpmRange,
+  seed: Seed,
+  weightedRanges?: WeightedValue<BpmRange>[],
+): number {
+  const resolved = resolveBpm("random", randomRange, seed, weightedRanges);
+  if (resolved !== currentBpm || randomRange.min === randomRange.max) {
+    return resolved;
+  }
+
+  const valueCount = randomRange.max - randomRange.min + 1;
+  return randomRange.min + ((resolved - randomRange.min + 1) % valueCount);
 }
