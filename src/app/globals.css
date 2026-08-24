@@ -18,6 +18,9 @@
 html,
 body {
   min-height: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
 }
 
 .wheel-entry-button,
@@ -1002,5 +1005,545 @@ body {
   .stage-next-panel,
   .stage-departing-panel {
     animation: none;
+  }
+}
+
+/* Mobile layout keeps the harmony readable before secondary controls. */
+@media (max-width: 699px) {
+  .editor-shell {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+    padding-inline: 1rem;
+  }
+
+  .editor-layout,
+  .control-panel,
+  .jam-card,
+  .session-strip,
+  .history-panel {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .editor-header {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.8rem !important;
+    margin-bottom: 1.5rem !important;
+  }
+
+  .editor-header-actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .editor-header-actions > * {
+    min-width: 0;
+    justify-content: center;
+    padding: 0.65rem 0.35rem !important;
+    font-size: 0.68rem !important;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .history-panel {
+    overflow: hidden;
+  }
+
+  .history-entry {
+    display: grid !important;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0.85rem !important;
+  }
+
+  .history-entry p {
+    overflow-wrap: anywhere;
+  }
+
+  .history-entry > button,
+  .history-entry > div:last-child {
+    max-width: 100%;
+  }
+
+  .harmony-card-header {
+    gap: 0.9rem;
+  }
+
+  .harmony-card-actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .harmony-card-actions > * {
+    min-width: 0;
+    padding: 0.65rem 0.45rem !important;
+    font-size: 0.72rem !important;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .stage-shell {
+    padding: 0.55rem !important;
+  }
+
+  .stage-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.55rem;
+  }
+
+  .stage-heading,
+  .stage-section-heading {
+    min-width: 0;
+  }
+
+  .stage-kicker {
+    max-width: 100%;
+    font-size: 0.58rem !important;
+    letter-spacing: 0.13em !important;
+  }
+
+  .stage-status {
+    display: none;
+  }
+
+  .stage-section-heading {
+    gap: 0.45rem !important;
+  }
+
+  .stage-section-heading h1 {
+    font-size: 1.45rem;
+  }
+
+  .stage-section-heading p {
+    font-size: 0.62rem;
+  }
+
+  .stage-header-tools {
+    gap: 0.55rem !important;
+  }
+
+  .stage-header-metronome {
+    gap: 0.25rem !important;
+  }
+
+  .stage-header-metronome label {
+    gap: 0.3rem !important;
+  }
+
+  .stage-header-metronome .metronome-volume {
+    width: 3.4rem !important;
+  }
+
+  .stage-header-timer > p:first-child {
+    font-size: 1.75rem !important;
+    line-height: 1;
+  }
+
+  .stage-header-timer > p:last-child {
+    max-width: 6.5rem;
+    font-size: 0.46rem !important;
+    letter-spacing: 0.12em !important;
+  }
+
+  .stage-layout {
+    margin-top: 0.5rem !important;
+    gap: 0.5rem !important;
+  }
+
+  .stage-frame,
+  .stage-secondary-panel {
+    padding: 0.45rem !important;
+    border-radius: 1rem !important;
+  }
+
+  .stage-section-grid {
+    gap: 0.38rem !important;
+  }
+
+  .stage-card {
+    border-radius: 0.85rem !important;
+  }
+
+  .stage-shell .stage-bars {
+    top: 0.42rem !important;
+    right: 0.42rem !important;
+    padding: 0.35rem 0.6rem !important;
+    border-radius: 0.55rem !important;
+    font-size: clamp(0.82rem, 4.8vw, 1.2rem) !important;
+    line-height: 1;
+  }
+
+  .stage-shell .stage-chord-symbol {
+    font-size: clamp(2.45rem, min(30cqw, 58cqh), 5.4rem);
+  }
+
+  .stage-shell .stage-chord-symbol-long {
+    font-size: clamp(1.9rem, min(20cqw, 48cqh), 4.4rem);
+  }
+
+  .stage-shell .stage-chord-symbol-extra-long {
+    font-size: clamp(1.5rem, min(15cqw, 40cqh), 3.5rem);
+  }
+
+  .stage-primary-panel .stage-card {
+    padding-bottom: 0.35rem !important;
+  }
+
+  .stage-primary-panel .stage-chord-roman {
+    position: absolute;
+    left: 0.65rem;
+    bottom: 0.45rem;
+    max-width: calc(100% - 1.3rem);
+    margin-top: 0 !important;
+    font-size: 0.62rem !important;
+    line-height: 1;
+    opacity: 0.72;
+  }
+
+  .stage-shell .stage-grid-single .stage-chord-symbol:not(.stage-chord-symbol-long) {
+    font-size: clamp(3.5rem, min(44cqw, 68cqh), 8.5rem);
+  }
+
+  .stage-shell .stage-grid-single .stage-chord-symbol-long:not(.stage-chord-symbol-extra-long) {
+    font-size: clamp(2.7rem, min(25cqw, 54cqh), 6rem);
+  }
+
+  .stage-shell .stage-grid-single .stage-chord-symbol-extra-long {
+    font-size: clamp(2rem, min(17cqw, 44cqh), 4.4rem);
+  }
+
+  .stage-shell .stage-grid-pair .stage-chord-symbol:not(.stage-chord-symbol-long) {
+    font-size: clamp(2.8rem, min(36cqw, 55cqh), 6.5rem);
+  }
+
+  .stage-shell .stage-grid-pair .stage-chord-symbol-long:not(.stage-chord-symbol-extra-long) {
+    font-size: clamp(2.15rem, min(21cqw, 45cqh), 4.8rem);
+  }
+
+  .stage-shell .stage-grid-pair .stage-chord-symbol-extra-long {
+    font-size: clamp(1.65rem, min(14cqw, 37cqh), 3.6rem);
+  }
+
+  .stage-secondary-panel .stage-chord-symbol-compact {
+    font-size: clamp(0.9rem, min(17cqw, 28cqh), 1.7rem) !important;
+  }
+
+  .stage-secondary-panel .stage-chord-symbol-long,
+  .stage-secondary-panel .stage-chord-symbol-extra-long {
+    font-size: clamp(0.72rem, min(12cqw, 24cqh), 1.25rem) !important;
+  }
+
+  .stage-secondary-panel .stage-bars {
+    top: 0.2rem !important;
+    right: 0.2rem !important;
+    padding: 0.16rem 0.32rem !important;
+    font-size: 0.62rem !important;
+  }
+
+  .stage-secondary-panel .stage-card {
+    padding: 0.2rem 1.65rem 0.2rem 0.25rem !important;
+  }
+
+  .stage-secondary-panel .stage-chord-roman {
+    display: none;
+  }
+
+  .stage-footer {
+    margin-top: 0.5rem !important;
+    gap: 0.4rem !important;
+  }
+
+  .stage-footer-controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.38rem !important;
+  }
+
+  .stage-control-button,
+  .stage-footer-secondary > * {
+    min-width: 0;
+    min-height: 2.45rem;
+    padding: 0.42rem 0.5rem !important;
+    border-radius: 0.75rem !important;
+    font-size: 0.7rem !important;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .stage-live-room-button {
+    grid-column: span 2;
+  }
+
+  .stage-footer-secondary {
+    width: 100%;
+    gap: 0.4rem !important;
+  }
+
+  .stage-footer-secondary > * {
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .stage-guest-controls {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (orientation: landscape) and (max-height: 480px) {
+  .stage-shell {
+    padding: 0.35rem 0.55rem !important;
+  }
+
+  .stage-header {
+    min-height: 2.9rem;
+  }
+
+  .stage-kicker {
+    font-size: 0.52rem !important;
+  }
+
+  .stage-section-heading {
+    margin-top: 0.1rem !important;
+  }
+
+  .stage-section-heading h1 {
+    font-size: 1.35rem;
+  }
+
+  .stage-section-heading p {
+    max-width: 15rem;
+  }
+
+  .stage-status {
+    display: none;
+  }
+
+  .stage-header-timer > p:first-child {
+    font-size: 2rem !important;
+  }
+
+  .stage-layout {
+    margin-top: 0.25rem !important;
+    gap: 0.35rem !important;
+  }
+
+  .stage-frame,
+  .stage-secondary-panel {
+    padding: 0.3rem !important;
+  }
+
+  .stage-section-grid {
+    gap: 0.25rem !important;
+  }
+
+  .stage-footer {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    margin-top: 0.3rem !important;
+    gap: 0.35rem !important;
+  }
+
+  .stage-footer-controls {
+    display: flex !important;
+    flex: 1 1 auto;
+    gap: 0.3rem !important;
+  }
+
+  .stage-control-button,
+  .stage-footer-secondary > * {
+    min-height: 2rem;
+    padding: 0.28rem 0.55rem !important;
+    border-radius: 0.65rem !important;
+    font-size: 0.62rem !important;
+    white-space: nowrap;
+  }
+
+  .stage-live-room-button {
+    grid-column: auto;
+  }
+
+  .stage-next-label-compact,
+  .stage-live-room-label-compact {
+    display: inline !important;
+  }
+
+  .stage-next-label-full,
+  .stage-live-room-label-full {
+    display: none !important;
+  }
+
+  .stage-footer-secondary {
+    width: auto;
+    flex: none;
+  }
+
+  .stage-shell .stage-bars {
+    font-size: 0.8rem !important;
+  }
+
+  .stage-shell .stage-grid-many .stage-chord-symbol {
+    font-size: clamp(1rem, min(16cqw, 52cqh), 2.6rem);
+  }
+
+  .stage-shell .stage-grid-many .stage-chord-symbol-long {
+    font-size: clamp(0.9rem, min(13cqw, 48cqh), 2.2rem);
+  }
+
+  .stage-shell .stage-grid-many .stage-chord-symbol-extra-long {
+    font-size: clamp(0.78rem, min(10cqw, 43cqh), 1.8rem);
+  }
+
+  .wheel-page {
+    height: 100dvh !important;
+    min-height: 0;
+    overflow: hidden !important;
+    padding: 0.4rem 0.7rem max(0.4rem, env(safe-area-inset-bottom)) !important;
+  }
+
+  .wheel-header {
+    height: 2.6rem;
+  }
+
+  .wheel-header p {
+    font-size: 0.5rem !important;
+  }
+
+  .wheel-header h1 {
+    margin-top: 0 !important;
+    font-size: 1.25rem !important;
+  }
+
+  .wheel-header a {
+    padding: 0.45rem 0.8rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  .wheel-layout {
+    --wheel-size: min(72dvh, 48vw, 19rem);
+    display: grid;
+    height: calc(100dvh - 3rem);
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 31vw);
+    align-items: center;
+    gap: clamp(0.7rem, 2.5vw, 1.5rem);
+  }
+
+  .wheel-stage-area {
+    position: relative;
+    left: auto;
+    top: auto;
+    width: var(--wheel-size);
+    justify-self: end;
+    transform: none;
+  }
+
+  .wheel-control {
+    position: static;
+    width: 100%;
+    max-width: 19rem;
+    padding: 0.75rem !important;
+    justify-self: start;
+    transform: none;
+  }
+
+  .wheel-control > p:first-child,
+  .wheel-control > p:last-child {
+    display: none;
+  }
+
+  .wheel-control label,
+  .wheel-control .wheel-select-wrap,
+  .wheel-control .wheel-launch {
+    margin-top: 0.5rem !important;
+  }
+
+  .wheel-control select {
+    padding-block: 0.55rem !important;
+    font-size: 0.75rem;
+  }
+
+  .wheel-control .min-h-16 {
+    min-height: 0;
+    margin-top: 0.5rem !important;
+    padding: 0.6rem !important;
+  }
+
+  .wheel-control .min-h-16 p {
+    font-size: 0.7rem !important;
+    line-height: 1.25;
+  }
+
+  .wheel-control .wheel-launch {
+    padding: 0.7rem !important;
+    font-size: 0.78rem;
+  }
+
+  .wheel-segment-label {
+    width: 3.8rem;
+    font-size: clamp(0.48rem, 1.6vw, 0.7rem);
+  }
+}
+
+@media (max-width: 800px) and (orientation: portrait) {
+  .wheel-page {
+    height: auto !important;
+    min-height: 100dvh;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding: 0.9rem 1rem max(2rem, env(safe-area-inset-bottom)) !important;
+  }
+
+  .wheel-header {
+    position: relative;
+    z-index: 20;
+    align-items: center;
+  }
+
+  .wheel-header h1 {
+    font-size: 1.75rem;
+  }
+
+  .wheel-header a {
+    padding: 0.7rem 1.1rem;
+  }
+
+  .wheel-layout {
+    position: relative;
+    display: grid;
+    height: auto;
+    min-height: 0;
+    grid-template-rows: auto auto;
+    align-content: start;
+    gap: 1.1rem;
+    padding-top: 1.35rem;
+  }
+
+  .wheel-stage-area {
+    width: min(88vw, 23rem);
+  }
+
+  .wheel-control {
+    width: 100%;
+    max-width: none;
+    padding: 1.15rem !important;
+  }
+
+  .wheel-segment-label {
+    width: 4.4rem;
+    font-size: clamp(0.62rem, 3.2vw, 0.88rem);
   }
 }

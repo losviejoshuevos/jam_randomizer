@@ -132,7 +132,7 @@ export function JamWheel() {
 
   return (
     <main className="wheel-page h-dvh overflow-hidden px-4 py-3 sm:px-7 sm:py-4">
-      <header className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
+      <header className="wheel-header mx-auto flex max-w-[1500px] items-center justify-between gap-4">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--accent)]">
             Полный рандом
