@@ -135,7 +135,7 @@ function SectionGrid({
         : "sm:grid-cols-2 xl:grid-cols-4";
 
   return (
-    <div className={`grid h-full min-h-0 auto-rows-fr gap-2 sm:gap-3 ${columnClass} ${densityClass}`}>
+    <div className={`stage-section-grid grid h-full min-h-0 auto-rows-fr gap-2 sm:gap-3 ${columnClass} ${densityClass}`}>
       {chordGroups.map((group) => {
         if (group.chords.length === 2) {
           return (
@@ -160,8 +160,7 @@ function SectionGrid({
                       key={`${chord.id}-${beatPulse.sequence}`}
                     />
                   ) : null}
-                  <div className="flex w-full items-center justify-between text-xs text-neutral-500">
-                    <span>{group.startIndex + halfIndex + 1}</span>
+                  <div className="flex w-full items-center justify-center text-xs text-neutral-500">
                     <span className={`${compact ? "text-[0.6rem]" : "text-xs sm:text-base"} font-black uppercase tracking-[0.08em] text-[var(--accent)]`}>
                       {halfIndex === 0 ? "1-я половина" : "2-я половина"}
                     </span>
@@ -200,9 +199,6 @@ function SectionGrid({
                 key={`${chord.id}-${beatPulse.sequence}`}
               />
             ) : null}
-            <span className="absolute left-2 top-2 text-[0.6rem] text-neutral-500 sm:left-4 sm:top-4 sm:text-xs">
-              {group.startIndex + 1}
-            </span>
             <span className={`absolute right-2 top-2 z-10 rounded-xl border border-[var(--accent)]/50 bg-[var(--stage-badge-background)] font-black text-[var(--accent)] ${compact ? "px-1.5 py-0.5 text-xs" : "stage-bars px-5 py-3 text-3xl sm:right-4 sm:top-4 sm:px-6 sm:text-5xl"}`}>
                 {formatStageDuration(chord.durationBars)}
             </span>
@@ -1192,16 +1188,16 @@ export function StageSession() {
           key={beatPulse.sequence}
         />
       ) : null}
-      <header className="relative z-10 flex flex-none items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-[0.65rem] font-bold uppercase tracking-[0.22em] text-[var(--accent)] sm:text-xs sm:tracking-[0.28em]">
+      <header className="stage-header relative z-10 flex flex-none items-center justify-between gap-3">
+        <div className="stage-heading min-w-0">
+          <p className="stage-kicker truncate text-[0.65rem] font-bold uppercase tracking-[0.22em] text-[var(--accent)] sm:text-xs sm:tracking-[0.28em]">
             {styleDescriptor(session.styleId).name} · {session.bpm} BPM · {session.meter}
             {guestMode ? ` · Ведомый экран · ${roomConnected ? "онлайн" : "подключение…"}` : ""}
-            <span className="text-[var(--accent-cool)]" data-testid="stage-status">
+            <span className="stage-status text-[var(--accent-cool)]" data-testid="stage-status">
               {` · ${stageStatus}`}
             </span>
           </p>
-          <div className="mt-1 flex items-baseline gap-3 sm:mt-2">
+          <div className="stage-section-heading mt-1 flex items-baseline gap-3 sm:mt-2">
             <h1 className="shrink-0 text-2xl font-black sm:text-4xl">
               Тема {currentSection.label}
             </h1>
@@ -1211,8 +1207,8 @@ export function StageSession() {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-4 sm:gap-7">
-          <div className="flex flex-col items-end gap-2">
+        <div className="stage-header-tools flex shrink-0 items-center gap-4 sm:gap-7">
+          <div className="stage-header-metronome flex flex-col items-end gap-2">
             {visualMetronomeMode === "indicator" ? (
               <div
                 aria-label={`Единый световой метроном, доля ${beatPulse.beatIndex + 1} из ${totalBeats}`}
@@ -1260,7 +1256,7 @@ export function StageSession() {
               </span>
             </label> : null}
           </div>
-          <div className="text-right">
+          <div className="stage-header-timer text-right">
             <p
               className={`font-mono text-3xl font-black tabular-nums sm:text-5xl ${warningActive ? "text-[var(--accent)]" : "text-white"}`}
               data-testid="stage-timer"
@@ -1331,7 +1327,7 @@ export function StageSession() {
       <footer className="stage-footer relative z-10 mt-3 flex flex-none flex-col gap-2 sm:mt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         {!guestMode ? <div className="stage-footer-controls grid min-w-0 grid-cols-3 gap-2 sm:flex sm:gap-3">
           <button
-            className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-black transition active:scale-95 disabled:cursor-wait disabled:opacity-65 sm:px-6 sm:py-3"
+            className="stage-control-button rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-black transition active:scale-95 disabled:cursor-wait disabled:opacity-65 sm:px-6 sm:py-3"
             disabled={startScheduling}
             onClick={() => void togglePlayback()}
             type="button"
@@ -1345,7 +1341,7 @@ export function StageSession() {
                 : "Старт"}
           </button>
           <button
-            className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold disabled:cursor-wait disabled:opacity-50 sm:px-5 sm:py-3"
+            className="stage-control-button rounded-full border border-white/15 px-3 py-2 text-sm font-semibold disabled:cursor-wait disabled:opacity-50 sm:px-5 sm:py-3"
             disabled={startScheduling}
             onClick={resetPlayback}
             type="button"
@@ -1357,7 +1353,7 @@ export function StageSession() {
               `Световой метроном: ${visualMetronomeModeLabel[visualMetronomeMode]}. ` +
               `Переключить на ${visualMetronomeModeLabel[nextVisualMetronomeMode(visualMetronomeMode)]}`
             }
-            className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] sm:px-5 sm:py-3"
+            className="stage-control-button rounded-full border border-white/15 px-3 py-2 text-sm font-semibold transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] sm:px-5 sm:py-3"
             data-testid="visual-metronome-mode-toggle"
             onClick={() =>
               setVisualMetronomeMode(nextVisualMetronomeMode)
@@ -1367,15 +1363,15 @@ export function StageSession() {
             Метроном: {visualMetronomeModeLabel[visualMetronomeMode]}
           </button>
           <button
-            className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold disabled:cursor-wait disabled:border-[var(--accent)]/40 disabled:text-[var(--accent)] sm:px-5 sm:py-3"
+            className="stage-control-button rounded-full border border-white/15 px-3 py-2 text-sm font-semibold disabled:cursor-wait disabled:border-[var(--accent)]/40 disabled:text-[var(--accent)] sm:px-5 sm:py-3"
             disabled={transitionQueued || startScheduling}
             onClick={moveToNextStep}
             type="button"
           >
-            <span className="sm:hidden">
+            <span className="stage-next-label-compact sm:hidden">
               {transitionQueued ? "После квадрата" : nextStep ? "Далее" : "Финиш"}
             </span>
-            <span className="hidden sm:inline">
+            <span className="stage-next-label-full hidden sm:inline">
               {transitionQueued
                 ? "Переход после квадрата"
                 : nextStep
@@ -1385,8 +1381,8 @@ export function StageSession() {
           </button>
           <LiveRoomPanel onCreated={setHostRoom} session={session} />
         </div> : (
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="rounded-full border border-[var(--accent-cool)]/35 px-4 py-2 text-sm font-semibold text-[var(--accent-cool)]">
+          <div className="stage-guest-controls flex min-w-0 items-center gap-2">
+            <div className="stage-control-button rounded-full border border-[var(--accent-cool)]/35 px-4 py-2 text-sm font-semibold text-[var(--accent-cool)]">
               Управление у ведущего
             </div>
             <button
@@ -1394,7 +1390,7 @@ export function StageSession() {
                 `Световой метроном: ${visualMetronomeModeLabel[visualMetronomeMode]}. ` +
                 `Переключить на ${visualMetronomeModeLabel[nextVisualMetronomeMode(visualMetronomeMode)]}`
               }
-              className="rounded-full border border-white/15 px-3 py-2 text-sm font-semibold transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] active:scale-95"
+              className="stage-control-button rounded-full border border-white/15 px-3 py-2 text-sm font-semibold transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] active:scale-95"
               data-testid="guest-visual-metronome-mode-toggle"
               onClick={() => setVisualMetronomeMode(nextVisualMetronomeMode)}
               type="button"
@@ -1403,7 +1399,7 @@ export function StageSession() {
             </button>
           </div>
         )}
-        <div className="flex shrink-0 items-center justify-end gap-2 text-xs text-neutral-500 sm:gap-4 sm:text-sm">
+        <div className="stage-footer-secondary flex shrink-0 items-center justify-end gap-2 text-xs text-neutral-500 sm:gap-4 sm:text-sm">
           <StylePerformanceGuide
             className="rounded-full border border-white/15 px-3 py-2 font-bold text-white transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] active:scale-95 sm:px-4"
             compact

@@ -620,7 +620,7 @@ function HarmonySectionCard({
       className={`jam-card flex min-h-[420px] flex-col rounded-3xl border p-6 transition sm:p-8 xl:p-10 ${focused ? "border-[var(--accent)] shadow-[0_0_32px_rgba(220,255,65,0.10)]" : "border-white/10"}`}
       data-testid={`harmony-card-${section.label.toLowerCase()}`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="harmony-card-header flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.28em] text-[var(--accent)]">
             {styleProfile.name} · Тема {section.label}
@@ -636,7 +636,7 @@ function HarmonySectionCard({
             {formatHarmonicFreedom(section.harmonySettings.harmonicFreedom)}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="harmony-card-actions flex items-center gap-2">
           <button
             className="rounded-full border border-white/15 px-4 py-2 text-sm font-bold text-white transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:border-white/5 disabled:text-neutral-600"
             disabled={section.chords.length >= 8}
@@ -1727,7 +1727,7 @@ export function FunkGenerator() {
 
   return (
     <main className="editor-shell mx-auto min-h-screen max-w-[1680px] px-5 py-8 !pb-28 sm:px-8 sm:!pb-28 lg:py-12">
-      <header className="mb-10 grid items-center gap-5 lg:grid-cols-[1fr_auto_1fr]">
+      <header className="editor-header mb-10 grid items-center gap-5 lg:grid-cols-[1fr_auto_1fr]">
         <div>
           <h1 className="text-4xl font-black tracking-tight sm:text-6xl">
             Jam Randomizer
@@ -1744,7 +1744,7 @@ export function FunkGenerator() {
           <span aria-hidden="true" className="text-xl">✦</span>
           Запустить колесо рандома
         </Link>
-        <div className="flex flex-wrap items-center gap-3 lg:justify-self-end">
+        <div className="editor-header-actions flex flex-wrap items-center gap-3 lg:justify-self-end">
           <QuickStartGuide />
           <StylePerformanceGuide
             className="rounded-full border border-white/15 px-5 py-3 text-sm font-bold text-white transition hover:border-[var(--accent-cool)] hover:text-[var(--accent-cool)] active:scale-95"
@@ -1754,8 +1754,8 @@ export function FunkGenerator() {
         </div>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
-        <section className="control-panel rounded-3xl border border-white/10 p-5 sm:p-6">
+      <div className="editor-layout grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
+        <section className="control-panel min-w-0 rounded-3xl border border-white/10 p-5 sm:p-6">
           <h2 className="text-lg font-bold">Настройки тем</h2>
           <p className="mt-2 text-xs leading-5 text-neutral-500">
             По умолчанию изменения применяются ко всем созданным темам.
@@ -2199,7 +2199,7 @@ export function FunkGenerator() {
           </div>
         </section>
 
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           <div className="session-strip flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 px-5 py-4">
             <h2 className="text-2xl font-black sm:text-3xl">
               {currentStyleProfile.name}-сессия
@@ -2276,7 +2276,7 @@ export function FunkGenerator() {
         {favoriteSessions.length ? (
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {favoriteSessions.map((session) => (
-              <article className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--accent)]/20 bg-black/30 p-4" key={session.id}>
+              <article className="history-entry flex items-center justify-between gap-4 rounded-2xl border border-[var(--accent)]/20 bg-black/30 p-4" key={session.id}>
                 <div className="min-w-0">
                   <p className="truncate font-bold text-white">★ {session.seed}</p>
                   <p className="mt-1 text-sm text-[var(--muted)]">{styleDescriptor(session.styleId).name} · {session.bpm} BPM · {session.meter}</p>
@@ -2304,7 +2304,7 @@ export function FunkGenerator() {
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {recentSessions.map((session) => (
               <article
-                className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/30 p-4"
+                className="history-entry flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/30 p-4"
                 key={session.id}
               >
                 <div className="min-w-0">

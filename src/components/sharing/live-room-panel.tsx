@@ -89,13 +89,13 @@ export function LiveRoomPanel({ session, onCreated }: LiveRoomPanelProps) {
     <>
       <button
         aria-label="Подключить других музыкантов"
-        className="rounded-full border border-[var(--accent-cool)]/40 px-3 py-2 text-sm font-semibold text-[var(--accent-cool)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] active:scale-95 sm:px-5 sm:py-3"
+        className="stage-control-button stage-live-room-button rounded-full border border-[var(--accent-cool)]/40 px-3 py-2 text-sm font-semibold text-[var(--accent-cool)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] active:scale-95 sm:px-5 sm:py-3"
         onClick={() => void startRoom()}
         title={enabled ? undefined : "Ведомые экраны временно отключены"}
         type="button"
       >
-        <span className="leading-tight sm:hidden">Другие музыканты</span>
-        <span className="hidden sm:inline">Подключить других музыкантов</span>
+        <span className="stage-live-room-label-compact leading-tight sm:hidden">Другие музыканты</span>
+        <span className="stage-live-room-label-full hidden sm:inline">Подключить других музыкантов</span>
       </button>
       {open ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Подключение ведомых экранов">
