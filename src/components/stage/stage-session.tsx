@@ -58,6 +58,13 @@ interface GuestBeatSync {
   squareBeat: number;
 }
 
+interface AudioScheduleDiagnostic {
+  beatIndex: number;
+  scheduledAtSeconds: number;
+  intervalMilliseconds: number | null;
+  leadMilliseconds: number;
+}
+
 type VisualMetronomeMode = "chord" | "indicator" | "screen";
 
 const visualMetronomeModeLabel: Record<VisualMetronomeMode, string> = {
@@ -296,8 +303,15 @@ export function StageSession() {
   const squareBeatRef = useRef(0);
   const activeSectionRef = useRef<JamSection | null>(null);
   const activeMeterRef = useRef<Meter>("4/4");
-  const accentAudioRef = useRef<HTMLAudioElement | null>(null);
-  const regularAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioGainRef = useRef<GainNode | null>(null);
+  const accentAudioBufferRef = useRef<AudioBuffer | null>(null);
+  const regularAudioBufferRef = useRef<AudioBuffer | null>(null);
+  const audioPreparationRef = useRef<Promise<void> | null>(null);
+  const scheduledAudioSourcesRef = useRef(new Set<AudioBufferSourceNode>());
+  const lastBeatAudioTimeRef = useRef<number | null>(null);
+  const lastScheduledAudioTimeRef = useRef<number | null>(null);
+  const audioScheduleDiagnosticsRef = useRef<AudioScheduleDiagnostic[]>([]);
   const transitionQueuedRef = useRef(false);
   const playbackRef = useRef(playback);
   const lastPublishedSnapshotRef = useRef<string | null>(null);
@@ -322,18 +336,62 @@ export function StageSession() {
     });
   }, [clockRoundTripMs, debugEnabled, lastRoomState, roomConnected]);
 
-  const triggerBeat = useCallback((beatIndex: number) => {
-    const audio =
-      beatIndex === 0 ? accentAudioRef.current : regularAudioRef.current;
+  const playBeatSound = useCallback((
+    beatIndex: number,
+    targetAudioTime?: number,
+  ): number | null => {
+    const audioContext = audioContextRef.current;
+    const audioBuffer =
+      beatIndex === 0
+        ? accentAudioBufferRef.current
+        : regularAudioBufferRef.current;
+    const audioGain = audioGainRef.current;
 
-    if (audio) {
-      audio.pause();
-      audio.currentTime = 0;
-      void audio.play().catch(() => {
-        // Browsers may block sound until the first explicit Start interaction.
+    if (!guestMode && audioContext && audioBuffer && audioGain) {
+      const scheduledAt = Math.max(
+        audioContext.currentTime,
+        targetAudioTime ?? audioContext.currentTime,
+      );
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioGain);
+      scheduledAudioSourcesRef.current.add(source);
+      source.addEventListener("ended", () => {
+        scheduledAudioSourcesRef.current.delete(source);
+        source.disconnect();
+      }, { once: true });
+      const previousScheduledAt = lastScheduledAudioTimeRef.current;
+      const diagnostics = audioScheduleDiagnosticsRef.current;
+      diagnostics.push({
+        beatIndex,
+        scheduledAtSeconds: scheduledAt,
+        intervalMilliseconds:
+          previousScheduledAt === null
+            ? null
+            : (scheduledAt - previousScheduledAt) * 1_000,
+        leadMilliseconds:
+          (scheduledAt - audioContext.currentTime) * 1_000,
       });
+      if (diagnostics.length > 64) diagnostics.shift();
+      lastScheduledAudioTimeRef.current = scheduledAt;
+      source.start(scheduledAt);
+      return scheduledAt;
     }
+    return null;
+  }, [guestMode]);
 
+  const stopScheduledBeatSounds = useCallback(() => {
+    for (const source of scheduledAudioSourcesRef.current) {
+      try {
+        source.stop();
+      } catch {
+        // The source may already have ended between iteration and stop().
+      }
+    }
+    scheduledAudioSourcesRef.current.clear();
+  }, []);
+
+  const triggerBeat = useCallback((beatIndex: number) => {
     setBeatPulse((current) => ({
       beatIndex,
       sequence: current.sequence + 1,
@@ -421,31 +479,78 @@ export function StageSession() {
     return () => window.clearInterval(timer);
   }, [guestMode, hostRoom]);
 
-  useEffect(() => {
+  const prepareMetronomeAudio = useCallback(async () => {
     if (guestMode) return;
-    const accent = new Audio("/service_files/accent.wav");
-    const regular = new Audio("/service_files/regular.wav");
-    accent.preload = "auto";
-    regular.preload = "auto";
-    accentAudioRef.current = accent;
-    regularAudioRef.current = regular;
 
-    return () => {
-      accent.pause();
-      regular.pause();
-      accentAudioRef.current = null;
-      regularAudioRef.current = null;
-    };
-  }, [guestMode]);
+    if (!audioContextRef.current) {
+      const audioContext = new AudioContext();
+      const gain = audioContext.createGain();
+      gain.gain.value = metronomeVolume;
+      gain.connect(audioContext.destination);
+      audioContextRef.current = audioContext;
+      audioGainRef.current = gain;
+    }
+
+    const audioContext = audioContextRef.current;
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
+
+    if (
+      accentAudioBufferRef.current &&
+      regularAudioBufferRef.current
+    ) {
+      return;
+    }
+
+    if (!audioPreparationRef.current) {
+      audioPreparationRef.current = Promise.all(
+        ["accent", "regular"].map(async (sound) => {
+          const response = await fetch(`/service_files/${sound}.wav`);
+          if (!response.ok) {
+            throw new Error(`Unable to load ${sound} metronome sound.`);
+          }
+          const buffer = await audioContext.decodeAudioData(
+            await response.arrayBuffer(),
+          );
+          if (sound === "accent") {
+            accentAudioBufferRef.current = buffer;
+          } else {
+            regularAudioBufferRef.current = buffer;
+          }
+        }),
+      ).then(() => undefined);
+    }
+
+    try {
+      await audioPreparationRef.current;
+    } catch (error) {
+      audioPreparationRef.current = null;
+      throw error;
+    }
+  }, [guestMode, metronomeVolume]);
 
   useEffect(() => {
-    if (accentAudioRef.current) {
-      accentAudioRef.current.volume = metronomeVolume;
-    }
-    if (regularAudioRef.current) {
-      regularAudioRef.current.volume = metronomeVolume;
-    }
+    const audioContext = audioContextRef.current;
+    const gain = audioGainRef.current;
+    if (!audioContext || !gain) return;
+    gain.gain.setValueAtTime(metronomeVolume, audioContext.currentTime);
   }, [metronomeVolume]);
+
+  useEffect(() => {
+    return () => {
+      const audioContext = audioContextRef.current;
+      audioContextRef.current = null;
+      audioGainRef.current = null;
+      accentAudioBufferRef.current = null;
+      regularAudioBufferRef.current = null;
+      audioPreparationRef.current = null;
+      stopScheduledBeatSounds();
+      if (audioContext && audioContext.state !== "closed") {
+        void audioContext.close();
+      }
+    };
+  }, [stopScheduledBeatSounds]);
 
   useEffect(() => {
     const restoreTimer = window.setTimeout(() => {
@@ -711,61 +816,119 @@ export function StageSession() {
   useEffect(() => {
     if (!session || !playback.running || guestMode) return;
 
+    const audioContext = audioContextRef.current;
+    if (!audioContext) return;
     const intervalMilliseconds = 60_000 / session.bpm;
-    let nextBeatAt = performance.now() + intervalMilliseconds;
-    let timeoutId: number;
+    const intervalSeconds = intervalMilliseconds / 1_000;
+    const audioAnchor = lastBeatAudioTimeRef.current ?? audioContext.currentTime;
+    let nextVisualBeatAt = audioAnchor + intervalSeconds;
+    let nextAudioBeatAt = nextVisualBeatAt;
+    let nextAudioBeat = nextBeatIndex(beatIndexRef.current, session.meter);
+    let animationFrameId = 0;
+    let schedulerStopped = false;
 
-    const scheduleNextBeat = () => {
-      timeoutId = window.setTimeout(() => {
-        const nextBeat = nextBeatIndex(
-          beatIndexRef.current,
-          session.meter,
-        );
-        beatIndexRef.current = nextBeat;
+    const scheduleAudioAhead = () => {
+      const now = audioContext.currentTime;
+      const scheduleUntil = now + 0.2;
 
-        const section = activeSectionRef.current;
-        const nextSquareBeat = section
-          ? nextSquareBeatIndex(
-              squareBeatRef.current,
-              session.meter,
-              section.bars,
-            )
-          : 0;
-        squareBeatRef.current = nextSquareBeat;
+      // If the browser suspended JavaScript longer than our look-ahead window,
+      // skip missed clicks instead of playing them in a burst.
+      while (nextAudioBeatAt < now - 0.008) {
+        nextAudioBeat = nextBeatIndex(nextAudioBeat, session.meter);
+        nextAudioBeatAt += intervalSeconds;
+      }
 
-        if (nextSquareBeat === 0 && transitionQueuedRef.current) {
-          transitionQueuedRef.current = false;
-          setTransitionQueued(false);
-          const nextPlayback = nextPlaybackState(playbackRef.current, session);
-          playbackRef.current = nextPlayback;
-          setPlayback(nextPlayback);
-          squareBeatRef.current = 0;
-
-          if (nextPlayback.completed) return;
-
-          const nextStep = session.timeline[nextPlayback.stepIndex];
-          activeSectionRef.current =
-            session.sections.find(({ id }) => id === nextStep?.sectionId) ??
-            null;
-          pendingBeatAnchorAtMsRef.current =
-            serverClockSynchronizedRef.current
-              ? Date.now() + serverClockOffsetRef.current
-              : null;
-          triggerBeat(0);
-          nextBeatAt += intervalMilliseconds;
-          scheduleNextBeat();
-          return;
-        }
-
-        triggerBeat(nextBeat);
-        nextBeatAt += intervalMilliseconds;
-        scheduleNextBeat();
-      }, Math.max(0, nextBeatAt - performance.now()));
+      while (nextAudioBeatAt <= scheduleUntil) {
+        playBeatSound(nextAudioBeat, nextAudioBeatAt);
+        nextAudioBeat = nextBeatIndex(nextAudioBeat, session.meter);
+        nextAudioBeatAt += intervalSeconds;
+      }
     };
 
-    scheduleNextBeat();
-    return () => window.clearTimeout(timeoutId);
-  }, [guestMode, playback.running, session, triggerBeat]);
+    const advanceVisualBeat = () => {
+      const nextBeat = nextBeatIndex(
+        beatIndexRef.current,
+        session.meter,
+      );
+      beatIndexRef.current = nextBeat;
+
+      const section = activeSectionRef.current;
+      const nextSquareBeat = section
+        ? nextSquareBeatIndex(
+            squareBeatRef.current,
+            session.meter,
+            section.bars,
+          )
+        : 0;
+      squareBeatRef.current = nextSquareBeat;
+
+      if (nextSquareBeat === 0 && transitionQueuedRef.current) {
+        transitionQueuedRef.current = false;
+        setTransitionQueued(false);
+        const nextPlayback = nextPlaybackState(playbackRef.current, session);
+        playbackRef.current = nextPlayback;
+        setPlayback(nextPlayback);
+        squareBeatRef.current = 0;
+
+        if (nextPlayback.completed) {
+          schedulerStopped = true;
+          stopScheduledBeatSounds();
+          return true;
+        }
+
+        const nextStep = session.timeline[nextPlayback.stepIndex];
+        activeSectionRef.current =
+          session.sections.find(({ id }) => id === nextStep?.sectionId) ??
+          null;
+        pendingBeatAnchorAtMsRef.current =
+          serverClockSynchronizedRef.current
+            ? Date.now() + serverClockOffsetRef.current
+            : null;
+        triggerBeat(0);
+        return false;
+      }
+
+      triggerBeat(nextBeat);
+      return false;
+    };
+
+    const renderVisualBeat = () => {
+      // requestAnimationFrame ties the flash to the next painted frame. If a
+      // frame was missed, advance the musical position without firing several
+      // visible pulses at once.
+      let missedBeats = 0;
+      while (
+        audioContext.currentTime >= nextVisualBeatAt &&
+        missedBeats < 32
+      ) {
+        if (advanceVisualBeat()) return;
+        nextVisualBeatAt += intervalSeconds;
+        missedBeats += 1;
+      }
+
+      if (!schedulerStopped) {
+        animationFrameId = window.requestAnimationFrame(renderVisualBeat);
+      }
+    };
+
+    scheduleAudioAhead();
+    const audioSchedulerId = window.setInterval(scheduleAudioAhead, 25);
+    animationFrameId = window.requestAnimationFrame(renderVisualBeat);
+
+    return () => {
+      schedulerStopped = true;
+      window.clearInterval(audioSchedulerId);
+      window.cancelAnimationFrame(animationFrameId);
+      stopScheduledBeatSounds();
+    };
+  }, [
+    guestMode,
+    playback.running,
+    playBeatSound,
+    session,
+    stopScheduledBeatSounds,
+    triggerBeat,
+  ]);
 
   useEffect(() => {
     if (!session || playback.stepIndex === previousStepIndexRef.current) return;
@@ -927,6 +1090,21 @@ export function StageSession() {
       serverClockOffsetMs: Math.round(serverClockOffsetRef.current),
       playback,
       beatPulse,
+      audioScheduler: audioContextRef.current
+        ? {
+            state: audioContextRef.current.state,
+            sampleRate: audioContextRef.current.sampleRate,
+            baseLatencyMs: Math.round(
+              audioContextRef.current.baseLatency * 1_000,
+            ),
+            outputLatencyMs: Math.round(
+              ((audioContextRef.current as AudioContext & {
+                outputLatency?: number;
+              }).outputLatency ?? 0) * 1_000,
+            ),
+            recentBeats: audioScheduleDiagnosticsRef.current,
+          }
+        : null,
       roomState: lastRoomState,
     };
     await navigator.clipboard.writeText(JSON.stringify(diagnostics, null, 2));
@@ -987,6 +1165,7 @@ export function StageSession() {
   }
 
   function resetPlayback() {
+    stopScheduledBeatSounds();
     if (scheduledStartTimerRef.current !== null) {
       window.clearTimeout(scheduledStartTimerRef.current);
       scheduledStartTimerRef.current = null;
@@ -995,6 +1174,8 @@ export function StageSession() {
     previousStepIndexRef.current = 0;
     beatIndexRef.current = 0;
     squareBeatRef.current = 0;
+    lastBeatAudioTimeRef.current = null;
+    lastScheduledAudioTimeRef.current = null;
     setBeatPulse((current) => ({
       beatIndex: 0,
       sequence: current.sequence,
@@ -1010,10 +1191,16 @@ export function StageSession() {
     setPlayback(initialPlayback(activeSession));
   }
 
-  function restartPlayback() {
+  async function restartPlayback() {
+    try {
+      await prepareMetronomeAudio();
+    } catch {
+      setLoadError("Не удалось загрузить звук метронома.");
+    }
     resetPlayback();
     beatIndexRef.current = 0;
     squareBeatRef.current = 0;
+    lastBeatAudioTimeRef.current = playBeatSound(0);
     triggerBeat(0);
     setPlayback({
       ...initialPlayback(activeSession),
@@ -1025,6 +1212,11 @@ export function StageSession() {
   async function togglePlayback() {
     if (startScheduling) return;
     if (!playback.running) {
+      try {
+        await prepareMetronomeAudio();
+      } catch {
+        setLoadError("Не удалось загрузить звук метронома.");
+      }
       if (!playback.started) {
         beatIndexRef.current = 0;
         squareBeatRef.current = 0;
@@ -1066,6 +1258,7 @@ export function StageSession() {
             `playing:${playbackRef.current.stepIndex}`;
           scheduledStartTimerRef.current = window.setTimeout(() => {
             scheduledStartTimerRef.current = null;
+            lastBeatAudioTimeRef.current = playBeatSound(beatIndexRef.current);
             triggerBeat(beatIndexRef.current);
             setPlayback((current) => ({
               ...current,
@@ -1081,7 +1274,14 @@ export function StageSession() {
           setStartScheduling(false);
         }
       }
+      lastBeatAudioTimeRef.current = playBeatSound(beatIndexRef.current);
       triggerBeat(beatIndexRef.current);
+    }
+
+    if (playback.running) {
+      stopScheduledBeatSounds();
+      lastBeatAudioTimeRef.current = null;
+      lastScheduledAudioTimeRef.current = null;
     }
 
     setPlayback((current) => ({
